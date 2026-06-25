@@ -152,6 +152,22 @@ func (r *Repository[T]) Find(model *T, args *FindArgs) (*T, error) {
 	return &value, nil
 }
 
+func (r *Repository[T]) FindById(id interface{}, args *FindArgs) (*T, error) {
+	db := r.db.Session(&gorm.Session{})
+
+	var value T
+
+	db = loadDbWithArgs(db, args)
+
+	if result := db.Where("id = ?", id).Limit(1).Find(&value); result.Error != nil {
+		return nil, result.Error
+	} else if result.RowsAffected == 0 {
+		return nil, nil
+	}
+
+	return &value, nil
+}
+
 func (r *Repository[T]) Exists(model *T, args *FindArgs) (bool, error) {
 	val, err := r.Find(model, args)
 

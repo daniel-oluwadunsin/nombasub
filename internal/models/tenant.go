@@ -4,9 +4,10 @@ import "time"
 
 type Tenant struct {
 	BaseModel
-	AccountID    string `gorm:"column:account_id;type:text;not null" json:"accountId"`
-	ClientID     string `gorm:"column:client_id;type:text;not null" json:"clientId"`
-	ClientSecret string `gorm:"column:client_secret;type:text;not null" json:"-"`
+	AccountID    string  `gorm:"column:account_id;type:text;not null" json:"accountId"`
+	ClientID     string  `gorm:"column:client_id;type:text;not null" json:"clientId"`
+	ClientSecret string  `gorm:"column:client_secret;type:text;not null" json:"-"`
+	WebhookUrl   *string `gorm:"column:webhook_url;type:text" json:"webhookUrl"`
 
 	AccessToken          *string    `gorm:"column:access_token;type:text" json:"accessToken"`
 	RefreshToken         *string    `gorm:"column:refresh_token;type:text" json:"refreshToken"`
