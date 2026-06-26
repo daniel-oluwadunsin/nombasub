@@ -9,6 +9,7 @@ type Container struct {
 	AuthService             *AuthService
 	TenantConnectionService *TenantConnectionService
 	CustomerService         *CustomerService
+	PlanService             *PlanService
 	NombaFactory            *nomba.Factory
 }
 

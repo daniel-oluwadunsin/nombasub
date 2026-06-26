@@ -38,6 +38,14 @@ func New(
 			customers.PUT("/:emailOrCode", handlers.UpdateCustomer)
 		}
 
+		plans := v1.Group("/plan")
+		{
+			plans.POST("/", handlers.CreatePlan)
+			plans.GET("/", handlers.GetPlans)
+			plans.GET("/:planCode", handlers.GetPlan)
+			plans.PUT("/:planCode", handlers.UpdatePlan)
+		}
+
 	}
 
 	return r
