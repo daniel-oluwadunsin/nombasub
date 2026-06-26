@@ -6,11 +6,11 @@ type CreatePlanRequest struct {
 	Name            string              `json:"name" binding:"required"`
 	Description     *string             `json:"description"`
 	Amount          int64               `json:"amount" binding:"required"`
-	Interval        models.PlanInterval `json:"interval" binding:"required"`
+	Interval        models.PlanInterval `json:"interval" binding:"required,oneof=daily weekly bi-weekly monthly quarterly yearly"`
 	IntervalCount   *int                `json:"intervalCount"`
 	TrialPeriodDays int                 `json:"trialPeriodDays"`
 	InvoiceLimit    *int                `json:"invoiceLimit"`
-	Currency        string              `json:"currency" binding:"required,default=NGN,oneof=NGN"`
+	Currency        string              `json:"currency" binding:"required,oneof=NGN"`
 }
 
 type GetPlansQuery struct {

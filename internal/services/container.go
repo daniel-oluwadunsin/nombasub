@@ -20,6 +20,7 @@ func NewContainer(rc *repositories.Container) *Container {
 	return &Container{
 		AuthService:             NewAuthService(rc),
 		CustomerService:         NewCustomerService(rc),
+		PlanService:             NewPlanService(rc),
 		TenantConnectionService: tenantConnectionService,
 		NombaFactory:            nombaFactory,
 	}
