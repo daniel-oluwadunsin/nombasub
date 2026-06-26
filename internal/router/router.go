@@ -19,6 +19,7 @@ func New(
 	r.Use(gin.Logger(), gin.Recovery())
 
 	r.GET("/health", handlers.Health)
+	r.NoRoute(handlers.NoRoute)
 
 	auth := r.Group("/auth")
 	{
@@ -29,7 +30,14 @@ func New(
 	v1 := r.Group("/v1")
 	v1.Use(middleware.APIKey(cfg, rc.TenantRepository, sc.AuthService))
 	{
-		// product routes go here
+		customers := v1.Group("/customer")
+		{
+			customers.POST("/", handlers.CreateCustomer)
+			customers.GET("/", handlers.GetCustomers)
+			customers.GET("/:emailOrCode", handlers.GetCustomer)
+			customers.PUT("/:emailOrCode", handlers.UpdateCustomer)
+		}
+
 	}
 
 	return r

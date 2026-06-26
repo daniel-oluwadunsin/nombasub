@@ -16,7 +16,7 @@ const (
 
 type PaymentSource struct {
 	BaseModel
-	TenantID   string              `gorm:"column:tenant_id;type:uuid;not null" json:"tenantId"`
+	TenantID   string              `gorm:"column:tenant_id;type:uuid;not null" json:"-"`
 	CustomerID string              `gorm:"column:customer_id;type:uuid;not null" json:"customerId"`
 	Type       PaymentSourceType   `gorm:"column:type;type:text;not null" json:"type"`
 	Card       *CardPaymentSource  `gorm:"embedded;embeddedPrefix:card_" json:"card,omitempty"`

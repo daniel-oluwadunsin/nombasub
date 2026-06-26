@@ -8,6 +8,7 @@ import (
 type Container struct {
 	AuthService             *AuthService
 	TenantConnectionService *TenantConnectionService
+	CustomerService         *CustomerService
 	NombaFactory            *nomba.Factory
 }
 
@@ -17,6 +18,7 @@ func NewContainer(rc *repositories.Container) *Container {
 
 	return &Container{
 		AuthService:             NewAuthService(rc),
+		CustomerService:         NewCustomerService(rc),
 		TenantConnectionService: tenantConnectionService,
 		NombaFactory:            nombaFactory,
 	}

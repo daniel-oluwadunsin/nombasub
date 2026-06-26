@@ -1,6 +1,9 @@
 package utils
 
-import "crypto/rand"
+import (
+	"crypto/rand"
+	"fmt"
+)
 
 func GenerateRandomString(length int) (string, error) {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -15,4 +18,13 @@ func GenerateRandomString(length int) (string, error) {
 	}
 
 	return string(randomBytes), nil
+}
+
+func GenerateCode(prefix string, length int) (string, error) {
+	randomString, err := GenerateRandomString(length)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s_%s", prefix, randomString), nil
 }

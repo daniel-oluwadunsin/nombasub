@@ -14,7 +14,7 @@ const (
 
 type Invoice struct {
 	BaseModel
-	TenantID             string        `gorm:"column:tenant_id;type:uuid;not null" json:"tenantId"`
+	TenantID             string        `gorm:"column:tenant_id;type:uuid;not null" json:"-"`
 	SubscriptionID       string        `gorm:"column:subscription_id;type:uuid;not null" json:"subscriptionId"`
 	CustomerID           string        `gorm:"column:customer_id;type:uuid;not null" json:"customerId"`
 	Code                 string        `gorm:"column:code;type:text;not null" json:"code"`
