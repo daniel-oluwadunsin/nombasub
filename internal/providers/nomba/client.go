@@ -3,6 +3,7 @@ package nomba
 import (
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/daniel-oluwadunsin/nombasub/internal/config"
@@ -20,6 +21,7 @@ type Client struct {
 	AccessToken          *string
 	RefreshToken         *string
 	AccessTokenExpiresAt *time.Time
+	tokenMu              sync.Mutex
 }
 
 func New(env *config.Config) (*Client, error) {
@@ -38,42 +40,35 @@ func New(env *config.Config) (*Client, error) {
 }
 
 func (c *Client) setNewHTTPClient() error {
-	var err error
-	if c.AccessToken == nil || c.AccessTokenExpiresAt == nil {
-		c, err = c.issueAccessToken(true)
-		if err != nil {
-			return FailedToIssueAccessTokenForTenant
-		}
-	} else {
-		if c.AccessTokenExpiresAt.Before(time.Now()) {
-			c, err = c.issueAccessToken(true)
-			if err != nil {
-				return FailedToRefreshAccessTokenForTenant
-			}
-		}
-	}
-
 	c.HTTPClient = resty.New().
 		SetBaseURL(nombaBaseUrl).
-		SetHeader("Authorization", fmt.Sprintf("Bearer %s", *c.AccessToken)).
-		SetRetryCount(1).
-		AddRetryConditions(func(r *resty.Response, err error) bool {
-			if r == nil {
-				return false
+		AddRequestMiddleware(func(_ *resty.Client, r *resty.Request) error {
+			accessToken, err := c.ensureAccessToken()
+			if err != nil {
+				return err
 			}
-			return false
-		}).
-		AddRetryHooks(func(r *resty.Response, err error) {
-			if r != nil {
-				if r.StatusCode() == http.StatusUnauthorized {
-					_, err := c.issueAccessToken(true)
-					if err != nil {
-						return
-					}
-					r.Request.SetHeader("Authorization", fmt.Sprintf("Bearer %s", *c.AccessToken))
-				}
-			}
+
+			r.SetHeader("accountId", c.AccountID)
+			r.SetHeader("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+			return nil
 		})
 
 	return nil
+}
+
+func (c *Client) authenticatedRequest(build func() *resty.Request, method string, url string) (*resty.Response, error) {
+	res, err := build().Execute(method, url)
+	if err != nil {
+		return nil, err
+	}
+
+	if res.StatusCode() != http.StatusUnauthorized {
+		return res, nil
+	}
+
+	if _, err := c.refreshAccessToken(); err != nil {
+		return nil, err
+	}
+
+	return build().Execute(method, url)
 }

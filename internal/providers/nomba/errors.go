@@ -3,7 +3,7 @@ package nomba
 import "errors"
 
 var (
-	ErrTenantConnectionNotFound         error = errors.New("tenant connection not found")
-	FailedToIssueAccessTokenForTenant   error = errors.New("failed to issue access token for tenant")
-	FailedToRefreshAccessTokenForTenant error = errors.New("failed to refresh access token for tenant")
+	ErrConnectionNotFound      error = errors.New("connection not found")
+	FailedToIssueAccessToken   error = errors.New("failed to issue access token")
+	FailedToRefreshAccessToken error = errors.New("failed to refresh access token")
 )

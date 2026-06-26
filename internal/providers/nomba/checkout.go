@@ -1,15 +1,17 @@
 package nomba
 
-import "github.com/daniel-oluwadunsin/nombasub/internal/responses"
+import (
+	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
+	"resty.dev/v3"
+)
 
 func (c *Client) CreateCheckoutOrder(body CreateCheckoutOrderRequest) (*CreateCheckoutOrderResponse, error) {
-	res, err := c.HTTPClient.R().
-		SetHeader("accountId", c.AccountID).
-		SetHeader("Authorization", "Bearer "+*c.AccessToken).
-		SetBody(body).
-		SetResultError(&errorResponse{}).
-		SetResult(&CreateCheckoutOrderResponse{}).
-		Post("/checkout/order")
+	res, err := c.authenticatedRequest(func() *resty.Request {
+		return c.HTTPClient.R().
+			SetBody(body).
+			SetResultError(&errorResponse{}).
+			SetResult(&CreateCheckoutOrderResponse{})
+	}, resty.MethodPost, "/checkout/order")
 
 	if err != nil {
 		return nil, responses.InternalServerError(err)

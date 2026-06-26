@@ -5,10 +5,11 @@ import (
 	"time"
 
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
+	"resty.dev/v3"
 )
 
 func (c *Client) issueAccessToken(isRefreshing bool) (*Client, error) {
-	client := c.HTTPClient.R()
+	client := resty.New().SetBaseURL(nombaBaseUrl).R()
 	var url string
 
 	if !isRefreshing {
@@ -21,6 +22,10 @@ func (c *Client) issueAccessToken(isRefreshing bool) (*Client, error) {
 				"client_secret": c.ClientSecret,
 			})
 	} else {
+		if c.AccessToken == nil || c.RefreshToken == nil {
+			return nil, ErrConnectionNotFound
+		}
+
 		url = "/auth/token/refresh"
 		client = client.
 			SetHeader("accountId", c.AccountID).
@@ -64,4 +69,56 @@ func (c *Client) issueAccessToken(isRefreshing bool) (*Client, error) {
 	}
 
 	return c, nil
+}
+
+func (c *Client) ensureAccessToken() (string, error) {
+	c.tokenMu.Lock()
+	defer c.tokenMu.Unlock()
+
+	if c.hasUsableAccessToken() {
+		return *c.AccessToken, nil
+	}
+
+	if c.AccessToken != nil && c.RefreshToken != nil {
+		if _, err := c.issueAccessToken(true); err == nil && c.AccessToken != nil {
+			return *c.AccessToken, nil
+		}
+	}
+
+	if _, err := c.issueAccessToken(false); err != nil {
+		return "", err
+	}
+
+	if c.AccessToken == nil {
+		return "", ErrConnectionNotFound
+	}
+
+	return *c.AccessToken, nil
+}
+
+func (c *Client) refreshAccessToken() (string, error) {
+	c.tokenMu.Lock()
+	defer c.tokenMu.Unlock()
+
+	if c.AccessToken != nil && c.RefreshToken != nil {
+		if _, err := c.issueAccessToken(true); err == nil && c.AccessToken != nil {
+			return *c.AccessToken, nil
+		}
+	}
+
+	if _, err := c.issueAccessToken(false); err != nil {
+		return "", err
+	}
+
+	if c.AccessToken == nil {
+		return "", ErrConnectionNotFound
+	}
+
+	return *c.AccessToken, nil
+}
+
+func (c *Client) hasUsableAccessToken() bool {
+	return c.AccessToken != nil &&
+		c.AccessTokenExpiresAt != nil &&
+		c.AccessTokenExpiresAt.After(time.Now().Add(5*time.Minute))
 }
