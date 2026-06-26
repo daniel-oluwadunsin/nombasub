@@ -35,6 +35,7 @@ type FindArgs struct {
 	Select   Select
 	Limit    *int
 	OrderBy  []OrderBy
+	Trx      *gorm.DB
 }
 
 func New[T any](db *gorm.DB, tableName string) *Repository[T] {
@@ -112,6 +113,9 @@ func loadDbWithArgs(db *gorm.DB, args *FindArgs, withoutPreloading bool) *gorm.D
 
 func (r *Repository[T]) FindRaw(args *FindArgs) (*T, error) {
 	db := r.db.Session(&gorm.Session{})
+	if args != nil && args.Trx != nil {
+		db = args.Trx.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
 
 	var value T
 
@@ -142,6 +146,9 @@ func (r *Repository[T]) ExistsRaw(args *FindArgs) (bool, error) {
 
 func (r *Repository[T]) Find(model *T, args *FindArgs) (*T, error) {
 	db := r.db.Session(&gorm.Session{})
+	if args != nil && args.Trx != nil {
+		db = args.Trx.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
 
 	var value T
 
@@ -158,6 +165,9 @@ func (r *Repository[T]) Find(model *T, args *FindArgs) (*T, error) {
 
 func (r *Repository[T]) FindById(id interface{}, args *FindArgs) (*T, error) {
 	db := r.db.Session(&gorm.Session{})
+	if args != nil && args.Trx != nil {
+		db = args.Trx.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
 
 	var value T
 
@@ -188,6 +198,9 @@ func (r *Repository[T]) Exists(model *T, args *FindArgs) (bool, error) {
 
 func (r *Repository[T]) FindManyRaw(args *FindArgs) ([]T, error) {
 	db := r.db.Session(&gorm.Session{})
+	if args != nil && args.Trx != nil {
+		db = args.Trx.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
 
 	var values []T
 
@@ -202,6 +215,9 @@ func (r *Repository[T]) FindManyRaw(args *FindArgs) ([]T, error) {
 
 func (r *Repository[T]) FindMany(model *T, args *FindArgs) ([]T, error) {
 	db := r.db.Session(&gorm.Session{})
+	if args != nil && args.Trx != nil {
+		db = args.Trx.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
 
 	var values []T
 
@@ -216,6 +232,9 @@ func (r *Repository[T]) FindMany(model *T, args *FindArgs) ([]T, error) {
 
 func (r *Repository[T]) FindManyPaginated(model *T, args *FindArgs, pg *requests.PaginationQuery) (*responses.PaginatedResponse[T], error) {
 	db := r.db.Session(&gorm.Session{})
+	if args != nil && args.Trx != nil {
+		db = args.Trx.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
 
 	var values []T
 
@@ -252,6 +271,9 @@ func (r *Repository[T]) FindManyPaginated(model *T, args *FindArgs, pg *requests
 
 func (r *Repository[T]) FindManyPaginatedRaw(args *FindArgs, pg *requests.PaginationQuery) (*responses.PaginatedResponse[T], error) {
 	db := r.db.Session(&gorm.Session{})
+	if args != nil && args.Trx != nil {
+		db = args.Trx.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
 
 	var values []T
 
@@ -301,8 +323,11 @@ func (r *Repository[T]) Count(args *FindArgs) (int64, error) {
 	return count, nil
 }
 
-func (r *Repository[T]) Create(data *T) (*T, error) {
+func (r *Repository[T]) Create(data *T, trx *gorm.DB) (*T, error) {
 	db := r.db.Session(&gorm.Session{})
+	if trx != nil {
+		db = trx
+	}
 
 	if data == nil {
 		return nil, gorm.ErrInvalidData
@@ -317,8 +342,11 @@ func (r *Repository[T]) Create(data *T) (*T, error) {
 	return data, nil
 }
 
-func (r *Repository[T]) CreateMany(data []T) ([]T, error) {
+func (r *Repository[T]) CreateMany(data []T, trx *gorm.DB) ([]T, error) {
 	db := r.db.Session(&gorm.Session{})
+	if trx != nil {
+		db = trx
+	}
 
 	if len(data) == 0 {
 		return nil, gorm.ErrInvalidData
@@ -333,8 +361,11 @@ func (r *Repository[T]) CreateMany(data []T) ([]T, error) {
 	return data, nil
 }
 
-func (r *Repository[T]) Update(data *T) (*T, error) {
+func (r *Repository[T]) Update(data *T, trx *gorm.DB) (*T, error) {
 	db := r.db.Session(&gorm.Session{NewDB: true})
+	if trx != nil {
+		db = trx
+	}
 
 	result := db.Select("*").Updates(data)
 
@@ -347,6 +378,9 @@ func (r *Repository[T]) Update(data *T) (*T, error) {
 
 func (r *Repository[T]) Delete(args *FindArgs) error {
 	db := r.db.Session(&gorm.Session{NewDB: true})
+	if args != nil && args.Trx != nil {
+		db = args.Trx
+	}
 
 	db = loadDbWithArgs(db, args, false)
 

@@ -6,6 +6,7 @@ import (
 	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
 	"github.com/daniel-oluwadunsin/nombasub/internal/requests"
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
+	"gorm.io/gorm"
 )
 
 type CustomerService struct {
@@ -42,7 +43,7 @@ func (s *CustomerService) CreateCustomer(tenantId string, body requests.CreateCu
 		PhoneNumber: body.PhoneNumber,
 		ExternalRef: body.ExternalRef,
 		Code:        code,
-	})
+	}, nil)
 
 	if err != nil {
 		return nil, responses.InternalServerError(err)
@@ -134,7 +135,7 @@ func (s *CustomerService) UpdateCustomer(tenantId string, emailOrCode string, bo
 		customer.ExternalRef = body.ExternalRef
 	}
 
-	updatedCustomer, err := customerRepository.Update(customer)
+	updatedCustomer, err := customerRepository.Update(customer, nil)
 	if err != nil {
 		return nil, responses.InternalServerError(err)
 	}
@@ -142,24 +143,33 @@ func (s *CustomerService) UpdateCustomer(tenantId string, emailOrCode string, bo
 	return updatedCustomer, nil
 }
 
-func (s *CustomerService) GetOrCreateCustomer(tenantId string, customer models.Customer) (*models.Customer, error) {
+func (s *CustomerService) GetOrCreateCustomer(tenantId string, customer models.Customer, trx *gorm.DB) (*models.Customer, error) {
 	if customer.Email == "" {
 		return nil, responses.BadRequest("Customer email is required")
 	}
 
-	customerDetails, err := s.GetCustomer(tenantId, customer.Email)
+	customerRepository := s.rc.CustomerRepository
+
+	customerDetails, err := customerRepository.FindRaw(&repositories.FindArgs{
+		Filter: repositories.NewQueryFilter().Where(
+			"tenant_id = ? AND email ILIKE ?",
+			tenantId,
+			customer.Email,
+		),
+		Trx: trx,
+	})
 	if err != nil {
 		return nil, responses.InternalServerError(err)
 	}
 
 	if customerDetails == nil {
-		customerDetails, err = s.CreateCustomer(tenantId, requests.CreateCustomerRequest{
-			Name:        customer.Name,
-			Email:       customer.Email,
-			PhoneNumber: customer.PhoneNumber,
-			ExternalRef: customer.ExternalRef},
-		)
+		code, err := utils.GenerateCode("CUST")
+		if err != nil {
+			return nil, responses.InternalServerError(err)
+		}
 
+		customer.Code = code
+		customerDetails, err = customerRepository.Create(&customer, trx)
 		if err != nil {
 			return nil, responses.InternalServerError(err)
 		}

@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	TenantIdCtxKey = "tenant_id"
+	TenantIdCtxKey  = "tenant_id"
+	AccountIdCtxKey = "tenant_account_id"
 )
 
 func APIKey(
@@ -49,6 +50,7 @@ func APIKey(
 		}
 
 		c.Set(TenantIdCtxKey, tenant.ID)
+		c.Set(AccountIdCtxKey, tenant.AccountID)
 		c.Next()
 	}
 }
