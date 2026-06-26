@@ -1,7 +1,6 @@
 package services
 
 import (
-	"github.com/daniel-oluwadunsin/nombasub/internal/helpers/encryption"
 	"github.com/daniel-oluwadunsin/nombasub/internal/helpers/utils"
 	"github.com/daniel-oluwadunsin/nombasub/internal/models"
 	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
@@ -48,11 +47,6 @@ func (s *AuthService) RegisterTenant(body requests.SignUpTenantRequest) (*string
 		return nil, responses.Conflict("A tenant has already been created for this account id")
 	}
 
-	encryptedClientSecret, err := encryption.Encrypt(body.ClientSecret, body.AccountID)
-	if err != nil {
-		return nil, responses.InternalServerError(err)
-	}
-
 	apiKey, err := s.assignNewApiKey()
 	if err != nil {
 		return nil, responses.InternalServerError(err)
@@ -61,11 +55,6 @@ func (s *AuthService) RegisterTenant(body requests.SignUpTenantRequest) (*string
 	tenant := &models.Tenant{
 		BusinessName: &body.BusinessName,
 		AccountID:    body.AccountID,
-		ClientID:     body.ClientID,
-		ClientSecret: encryptedClientSecret.Ciphertext,
-		Nonce:        encryptedClientSecret.Nonce,
-		Algorithm:    encryptedClientSecret.Algorithm,
-		KeyVersion:   encryptedClientSecret.KeyVersion,
 		ApiKey:       apiKey,
 	}
 
@@ -87,21 +76,6 @@ func (s *AuthService) LoginTenant(body requests.LoginTenantRequest) (*string, er
 
 	if tenant == nil {
 		return nil, responses.NotFound("Tenant not found")
-	}
-
-	decryptedClientSecret, err := encryption.Decrypt(encryption.EncryptedSecret{
-		Ciphertext: tenant.ClientSecret,
-		Nonce:      tenant.Nonce,
-		Algorithm:  tenant.Algorithm,
-		KeyVersion: tenant.KeyVersion,
-	}, body.AccountID)
-
-	if err != nil {
-		return nil, responses.InternalServerError(err)
-	}
-
-	if decryptedClientSecret != body.ClientSecret {
-		return nil, responses.Unauthorized("Invalid client secret")
 	}
 
 	return &tenant.ApiKey, nil
