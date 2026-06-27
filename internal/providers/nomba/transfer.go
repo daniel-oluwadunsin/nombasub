@@ -1,27 +1,24 @@
 package nomba
 
 import (
-	"fmt"
-
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
 	"resty.dev/v3"
 )
 
-func (c *Client) CreateCheckoutOrder(body CreateCheckoutOrderRequest) (*CreateCheckoutOrderResponse, error) {
+func (c *Client) TransferToNombaAccount(body TransferToAccountRequest) (*TransferToAccountResponse, error) {
 	res, err := c.authenticatedRequest(func() *resty.Request {
 		return c.HTTPClient.R().
 			SetBody(body).
 			SetResultError(&errorResponse{}).
-			SetResult(&CreateCheckoutOrderResponse{})
-	}, resty.MethodPost, "/v1/checkout/order")
+			SetResult(&TransferToAccountResponse{})
+	}, resty.MethodPost, "/v2/transfers/wallet")
 
 	if err != nil {
-		return nil, responses.InternalServerError(err)
+		return nil, err
 	}
 
 	if res.IsStatusFailure() {
 		err := res.ResultError().(*errorResponse)
-		fmt.Println("Error response from Nomba:", res.String())
 		return nil, &responses.AppError{
 			StatusCode: res.StatusCode(),
 			Message:    err.Description,
@@ -29,6 +26,6 @@ func (c *Client) CreateCheckoutOrder(body CreateCheckoutOrderRequest) (*CreateCh
 		}
 	}
 
-	result := res.Result().(*CreateCheckoutOrderResponse)
+	result := res.Result().(*TransferToAccountResponse)
 	return result, nil
 }

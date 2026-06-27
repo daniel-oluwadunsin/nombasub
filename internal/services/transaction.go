@@ -9,6 +9,7 @@ import (
 	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
 	"github.com/daniel-oluwadunsin/nombasub/internal/requests"
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -29,6 +30,7 @@ func NewTransactionService(rc *repositories.Container, nombaProvider nomba.Provi
 func (ts *TransactionService) InitializeCardTransaction(tenantId, tenantAccountId string, body requests.CreateCheckoutOrderRequest) (*nomba.CreateCheckoutOrderResponse, error) {
 	db := ts.rc.DB
 	planRepository := ts.rc.PlanRepository
+	nombaInitiationRepository := ts.rc.NombaInitiationRepository
 	nombaProvider := ts.nombaProvider
 	customerService := ts.customerService
 
@@ -57,16 +59,37 @@ func (ts *TransactionService) InitializeCardTransaction(tenantId, tenantAccountI
 
 		checkoutOrder := body.CreateCheckoutOrderRequest
 
+		tenantAccountId = *utils.Or(checkoutOrder.Order.AccountId, &tenantAccountId)
 		metadata := *utils.Or(checkoutOrder.Order.OrderMetaData, new(map[string]interface{}))
 		metadata["nombaSubTenantId"] = tenantId
 		metadata["nombaSubCustomerCode"] = customer.Code
 		metadata["nombaSubPlanCode"] = plan.Code
 		metadata["nombaSubTenantAccountId"] = tenantAccountId
+		if checkoutOrder.Order.OrderReference != nil {
+			metadata["nombaSubTenantOrderReference"] = *checkoutOrder.Order.OrderReference
+		}
 		checkoutOrder.Order.OrderMetaData = &metadata
 		checkoutOrder.Order.AllowedPaymentMethods = utils.ToPtr([]nomba.PaymentMethod{nomba.PaymentMethodCard})
 		checkoutOrder.Order.Amount = plan.Amount
+		checkoutOrder.Order.Currency = &plan.Currency
 		checkoutOrder.TokenizeCard = utils.ToPtr(true)
-		checkoutOrder.Order.AccountId = utils.ToPtr(tenantAccountId) // funds will be credited to the tenant's account
+		checkoutOrder.Order.AccountId = utils.ToPtr(tenantAccountId)
+
+		reference := fmt.Sprintf("nombasub_%s_%s", tenantId, uuid.New().String())
+		checkoutOrder.Order.OrderReference = &reference
+
+		_, err = nombaInitiationRepository.Create(&models.NombaInitiation{
+			TenantID:  tenantId,
+			Amount:    float64(checkoutOrder.Order.Amount),
+			Currency:  *checkoutOrder.Order.Currency,
+			Reference: reference,
+			Purpose:   models.NombaInitiationPurposeCardSubscriptionPayment,
+			Metadata:  metadata,
+		}, trx)
+
+		if err != nil {
+			return err
+		}
 
 		nombaResponse, err = nombaProvider.CreateCheckoutOrder(checkoutOrder)
 		fmt.Println(err)

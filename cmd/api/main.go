@@ -39,6 +39,7 @@ func main() {
 		&models.WebhookDelivery{},
 		&models.WebhookDeliveryAttempt{},
 		&models.NombaWebhookEvent{},
+		&models.NombaInitiation{},
 	); err != nil {
 		log.Fatalf("auto-migrate failed: %v", err)
 	}

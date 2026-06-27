@@ -51,6 +51,11 @@ func New(
 			transactions.POST("/order", handlers.InitializeCardTransaction) // same nomba route path for card transactions.
 		}
 
+		webhook := v1.Group("/webhook")
+		{
+			webhook.POST("/nomba", handlers.HandleWebhook)
+		}
+
 	}
 
 	return r
