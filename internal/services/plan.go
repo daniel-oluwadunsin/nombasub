@@ -50,10 +50,12 @@ func (s *PlanService) CreatePlan(tenantId string, body requests.CreatePlanReques
 		}
 
 		planVersion := &models.PlanVersion{
+			TenantID:        tenantId,
 			PlanID:          plan.ID,
 			Index:           1,
 			Name:            plan.Name,
 			Description:     plan.Description,
+			Currency:        plan.Currency,
 			Code:            plan.Code,
 			Amount:          plan.Amount,
 			Interval:        plan.Interval,

@@ -27,6 +27,11 @@ func New(
 		auth.POST("/login", handlers.LoginTenant)
 	}
 
+	webhook := r.Group("/webhook")
+	{
+		webhook.POST("/nomba", handlers.HandleWebhook)
+	}
+
 	v1 := r.Group("/v1")
 	v1.Use(middleware.APIKey(cfg, rc.TenantRepository, sc.AuthService))
 	{
@@ -49,11 +54,6 @@ func New(
 		transactions := v1.Group("/checkout")
 		{
 			transactions.POST("/order", handlers.InitializeCardTransaction) // same nomba route path for card transactions.
-		}
-
-		webhook := v1.Group("/webhook")
-		{
-			webhook.POST("/nomba", handlers.HandleWebhook)
 		}
 
 	}

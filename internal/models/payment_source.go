@@ -25,11 +25,11 @@ type PaymentSource struct {
 }
 
 type CardPaymentSource struct {
-	Type                   string  `gorm:"column:type;type:text;" json:"type,omitempty"`
-	Pan                    string  `gorm:"column:pan;type:text;" json:"pan,omitempty"`
-	Currency               *string `gorm:"column:currency;type:text;" json:"currency,omitempty"`
-	AuthorizationToken     *string `gorm:"column:authorization_token;type:text;" json:"authorizationToken,omitempty"`
-	CheckoutOrderReference *string `gorm:"column:checkout_order_reference;type:text;" json:"checkoutOrderReference,omitempty"`
+	Type               string  `gorm:"column:type;type:text;" json:"type"`
+	Pan                *string `gorm:"column:pan;type:text;" json:"pan"`
+	Last4Digits        *string `gorm:"column:last4_digits;type:text;" json:"last4Digits"`
+	Currency           *string `gorm:"column:currency;type:text;" json:"currency"`
+	AuthorizationToken *string `gorm:"column:authorization_token;type:text;" json:"authorizationToken"`
 }
 
 type MandateStatus string

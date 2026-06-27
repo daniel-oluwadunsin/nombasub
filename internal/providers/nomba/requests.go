@@ -66,6 +66,15 @@ type NombaWebhookRequest struct {
 			PaymentMethod   string  `json:"paymentMethod"`
 			CardType        string  `json:"cardType"`
 			CardLast4Digits string  `json:"cardLast4Digits"`
+			AccountId       string  `json:"accountId"`
+			CardCurrency    string  `json:"cardCurrency"`
 		} `json:"order"`
+		TokenizedCardData *struct {
+			TokenKey         string `json:"tokenKey"`
+			CardType         string `json:"cardType"`
+			TokenExpiryYear  string `json:"tokenExpiryYear"`
+			TokenExpiryMonth string `json:"tokenExpiryMonth"`
+			CardPan          string `json:"cardPan"`
+		} `json:"tokenizedCardData"`
 	} `json:"data"`
 }
