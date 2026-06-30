@@ -29,6 +29,7 @@ type Subscription struct {
 	CurrentBillingCycleStart     *time.Time        `gorm:"column:current_billing_cycle_start;type:timestamp;" json:"currentBillingCycleStart"`
 	CurrentBillingCycleEnd       *time.Time        `gorm:"column:current_billing_cycle_end;type:timestamp;" json:"currentBillingCycleEnd"`
 	CancelledAtEndOfBillingCycle bool              `gorm:"column:cancelled_at_end_of_billing_cycle;type:boolean;default:false" json:"cancelledAtEndOfBillingCycle"`
+	StartedAt                    *time.Time        `gorm:"column:started_at;type:timestamp;" json:"startedAt"`
 	CancelledAt                  *time.Time        `gorm:"column:cancelled_at;type:timestamp;" json:"cancelledAt"`
 	CompletedAt                  *time.Time        `gorm:"column:completed_at;type:timestamp;" json:"completedAt"`
 	PausedAt                     *time.Time        `gorm:"column:paused_at;type:timestamp;" json:"pausedAt"`

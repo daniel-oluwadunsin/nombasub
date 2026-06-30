@@ -3,6 +3,9 @@ package utils
 import (
 	"crypto/rand"
 	"fmt"
+	"time"
+
+	"github.com/daniel-oluwadunsin/nombasub/internal/models"
 )
 
 func GenerateRandomString(length int) (string, error) {
@@ -37,6 +40,39 @@ func Or[T any](value *T, defaultValue *T) *T {
 	return defaultValue
 }
 
+func OrStrings(value ...string) string {
+	for _, v := range value {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 func ToPtr[T any](value T) *T {
 	return &value
+}
+
+func GetBillingPeriod(startDate time.Time, interval models.PlanInterval, billingIntervalCount *int) (time.Time, time.Time) {
+	intervalCount := 1
+	if billingIntervalCount != nil && *billingIntervalCount > 0 {
+		intervalCount = *billingIntervalCount
+	}
+
+	switch interval {
+	case models.PlanIntervalDaily:
+		return startDate, startDate.AddDate(0, 0, intervalCount)
+	case models.PlanIntervalWeekly:
+		return startDate, startDate.AddDate(0, 0, 7*intervalCount)
+	case models.PlanIntervalBiWeekly:
+		return startDate, startDate.AddDate(0, 0, 14*intervalCount)
+	case models.PlanIntervalMonthly:
+		return startDate, startDate.AddDate(0, intervalCount, 0)
+	case models.PlanIntervalQuarterly:
+		return startDate, startDate.AddDate(0, 3*intervalCount, 0)
+	case models.PlanIntervalYearly:
+		return startDate, startDate.AddDate(intervalCount, 0, 0)
+	default:
+		return startDate, startDate
+	}
 }

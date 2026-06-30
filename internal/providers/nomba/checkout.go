@@ -13,15 +13,15 @@ func (c *Client) CreateCheckoutOrder(body CreateCheckoutOrderRequest) (*CreateCh
 			SetBody(body).
 			SetResultError(&errorResponse{}).
 			SetResult(&CreateCheckoutOrderResponse{})
-	}, resty.MethodPost, "/v1/checkout/order")
+	}, resty.MethodPost, "/sandbox/checkout/order")
 
 	if err != nil {
 		return nil, responses.InternalServerError(err)
 	}
 
 	if res.IsStatusFailure() {
-		err := res.ResultError().(*errorResponse)
 		fmt.Println("Error response from Nomba:", res.String())
+		err := res.ResultError().(*errorResponse)
 		return nil, &responses.AppError{
 			StatusCode: res.StatusCode(),
 			Message:    err.Description,

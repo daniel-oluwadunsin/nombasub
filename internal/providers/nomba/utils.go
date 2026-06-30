@@ -48,3 +48,15 @@ func (c *Client) GenerateSignature(payloadJSON, timeStamp string) (string, error
 
 	return base64.StdEncoding.EncodeToString(hash), nil
 }
+
+func (c *Client) CalculateFee(amount float64) float64 {
+	var feeCap float64 = 1800
+	feeAmount := 1.4 / 100 * amount
+
+	return min(feeAmount, feeCap)
+}
+
+func (c *Client) DeductFee(amount float64) float64 {
+	fee := c.CalculateFee(amount)
+	return amount - fee
+}

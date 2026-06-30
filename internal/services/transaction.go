@@ -29,12 +29,19 @@ func NewTransactionService(rc *repositories.Container, nombaProvider nomba.Provi
 
 func (ts *TransactionService) InitializeCardTransaction(tenantId, tenantAccountId string, body requests.CreateCheckoutOrderRequest) (*nomba.CreateCheckoutOrderResponse, error) {
 	db := ts.rc.DB
-	planRepository := ts.rc.PlanRepository
+	planVersionRepository := ts.rc.PlanVersionRepository
 	nombaInitiationRepository := ts.rc.NombaInitiationRepository
+	subscriptionRepository := ts.rc.SubscriptionRepository
 	nombaProvider := ts.nombaProvider
 	customerService := ts.customerService
 
-	plan, err := planRepository.Find(&models.Plan{Code: body.PlanCode, TenantID: tenantId}, nil)
+	plan, err := planVersionRepository.Find(
+		&models.PlanVersion{TenantID: tenantId, Code: body.PlanCode}, &repositories.FindArgs{
+			OrderBy: []repositories.OrderBy{
+				{Column: "index", Desc: true},
+			},
+		},
+	)
 	if err != nil {
 		return nil, responses.InternalServerError(err)
 	}
@@ -57,6 +64,19 @@ func (ts *TransactionService) InitializeCardTransaction(tenantId, tenantAccountI
 			return err
 		}
 
+		subscriptionExists, err := subscriptionRepository.Exists(&models.Subscription{
+			TenantID:   tenantId,
+			CustomerID: customer.ID,
+			PlanID:     plan.PlanID,
+			Status:     models.SubscriptionStatusActive,
+		}, nil)
+		if err != nil {
+			return err
+		}
+		if subscriptionExists {
+			return responses.BadRequest("Customer already has an active subscription for this plan")
+		}
+
 		checkoutOrder := body.CreateCheckoutOrderRequest
 
 		tenantAccountId = *utils.Or(checkoutOrder.Order.AccountId, &tenantAccountId)
@@ -64,6 +84,7 @@ func (ts *TransactionService) InitializeCardTransaction(tenantId, tenantAccountI
 		metadata["nombaSubTenantId"] = tenantId
 		metadata["nombaSubCustomerCode"] = customer.Code
 		metadata["nombaSubPlanCode"] = plan.Code
+		metadata["nombaSubPlanVersion"] = plan.Index
 		metadata["nombaSubTenantAccountId"] = tenantAccountId
 		if checkoutOrder.Order.OrderReference != nil {
 			metadata["nombaSubTenantOrderReference"] = *checkoutOrder.Order.OrderReference
@@ -78,7 +99,7 @@ func (ts *TransactionService) InitializeCardTransaction(tenantId, tenantAccountI
 		reference := fmt.Sprintf("nombasub_%s_%s", tenantId, uuid.New().String())
 		checkoutOrder.Order.OrderReference = &reference
 
-		_, err = nombaInitiationRepository.Create(&models.NombaInitiation{
+		nombaInitiation, err := nombaInitiationRepository.Create(&models.NombaInitiation{
 			TenantID:  tenantId,
 			Amount:    float64(checkoutOrder.Order.Amount),
 			Currency:  *checkoutOrder.Order.Currency,
@@ -92,7 +113,12 @@ func (ts *TransactionService) InitializeCardTransaction(tenantId, tenantAccountI
 		}
 
 		nombaResponse, err = nombaProvider.CreateCheckoutOrder(checkoutOrder)
-		fmt.Println(err)
+		if err != nil {
+			return err
+		}
+
+		nombaInitiation.NombaOrderID = &nombaResponse.Data.OrderReference
+		_, err = nombaInitiationRepository.Update(nombaInitiation, trx)
 		if err != nil {
 			return err
 		}
