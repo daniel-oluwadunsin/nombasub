@@ -1,5 +1,7 @@
 package nomba
 
+import "time"
+
 type Response[T any] struct {
 	Code        string `json:"code"`
 	Description string `json:"description"`
@@ -34,6 +36,31 @@ type GetDirectDebitManadateResponse = Response[struct {
 	MandateStatus         MandateStatus `json:"mandateStatus"`
 	RejectionReason       string        `json:"rejectionReason"`
 	MandateAdviceStatus   string        `json:"mandateAdviceStatus"`
+}]
+
+type DebitMandateResponse = Response[struct {
+	MandateId string `json:"mandateId"`
+	Amount    string `json:"amount"`
+	Status    string `json:"status"`
+	Message   string `json:"message"`
+}]
+
+type GetMandateResponse = Response[struct {
+	Status                string    `json:"status"`
+	CustomerAccountName   string    `json:"customerAccountName"`
+	CustomerAccountNumber string    `json:"customerAccountNumber"`
+	BankCode              string    `json:"bankCode"`
+	Amount                int64     `json:"amount"`
+	CustomerName          string    `json:"customerName"`
+	CustomerAddress       string    `json:"customerAddress"`
+	CustomerPhoneNumber   string    `json:"customerPhoneNumber"`
+	CustomerEmail         string    `json:"customerEmail"`
+	MerchantReference     string    `json:"merchantReference"`
+	Frequency             Frequency `json:"frequency"`
+	StartDate             time.Time `json:"startDate"`
+	EndDate               time.Time `json:"endDate"`
+	MandateAdviceStatus   string    `json:"mandateAdviceStatus"`
+	MandateId             string    `json:"mandateId"`
 }]
 
 type TransferToAccountResponse = Response[struct {

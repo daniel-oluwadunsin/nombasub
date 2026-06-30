@@ -59,3 +59,11 @@ const (
 	MandateStatusSuspended MandateStatus = "SUSPENDED"
 	MandateStatusDeleted   MandateStatus = "DELETED"
 )
+
+type UpdateMandateStatus string
+
+const (
+	UpadateMandateStatusActive    MandateStatus = "ACTIVE"
+	UpadateMandateStatusSuspended MandateStatus = "SUSPEND"
+	UpadateMandateStatusDeleted   MandateStatus = "DELETE"
+)
