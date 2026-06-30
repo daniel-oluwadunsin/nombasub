@@ -22,6 +22,10 @@ type TransferToAccountRequest struct {
 	ReceiverAccountId string  `json:"receiverAccountId" binding:"required"`
 }
 
+type CreateDirectDebitManadateRequest struct {
+	CustomerAccountNumber string `json:"customerAccountNumber" binding:"required"`
+}
+
 type NombaWebhookRequest struct {
 	EventType WebhookEventType `json:"event_type"`
 	RequestID string           `json:"requestId"`

@@ -20,6 +20,12 @@ type CreateCheckoutOrderResponse = Response[struct {
 	OrderReference string `json:"orderReference"`
 }]
 
+type CreateDirectDebitManadateResponse = Response[struct {
+	MandateID           string `json:"mandateId"`
+	MerchantReference   string `json:"merchantReference"`
+	CustomerPhoneNumber string `json:"customerPhoneNumber"`
+}]
+
 type TransferToAccountResponse = Response[struct {
 	ID               *string        `json:"id"`
 	Status           TransferStatus `json:"status"`
