@@ -11,9 +11,12 @@ import (
 	"github.com/daniel-oluwadunsin/nombasub/internal/config"
 	"github.com/daniel-oluwadunsin/nombasub/internal/cron"
 	"github.com/daniel-oluwadunsin/nombasub/internal/db"
+	"github.com/daniel-oluwadunsin/nombasub/internal/handlers"
 	"github.com/daniel-oluwadunsin/nombasub/internal/models"
 	"github.com/daniel-oluwadunsin/nombasub/internal/queue"
+	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
 	"github.com/daniel-oluwadunsin/nombasub/internal/router"
+	"github.com/daniel-oluwadunsin/nombasub/internal/services"
 )
 
 func main() {
@@ -23,9 +26,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("database connection failed: %v", err)
 	}
-	if err := database.AutoMigrate(&models.User{}); err != nil {
+	if err := database.AutoMigrate(&models.Tenant{}); err != nil {
 		log.Fatalf("auto-migrate failed: %v", err)
 	}
+
+	rc := repositories.NewContainer(database)
+	sc := services.NewContainer(rc)
+	handlers := handlers.New(sc)
 
 	mq, err := queue.NewConnection(cfg.RabbitMQURL)
 	if err != nil {
@@ -45,7 +52,7 @@ func main() {
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	r := router.New(cfg)
+	r := router.New(cfg, handlers, rc, sc)
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
 		Handler: r,

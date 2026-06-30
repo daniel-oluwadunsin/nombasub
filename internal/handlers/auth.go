@@ -3,17 +3,41 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/daniel-oluwadunsin/nombasub/internal/requests"
+	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
 	"github.com/gin-gonic/gin"
 )
 
-func Register(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"message": "not implemented"})
+func (h *Handler) RegisterTenant(ctx *gin.Context) {
+	var body requests.AuthTenantRequest
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		responses.Error(ctx, responses.BadRequest(err.Error()))
+		return
+	}
+
+	tenantApiKey, err := h.sc.AuthService.RegisterTenant(body)
+	if err != nil {
+		responses.Error(ctx, err)
+		return
+	}
+
+	responses.Success(ctx, http.StatusOK, "Tenant registered successfully", gin.H{"apiKey": tenantApiKey})
 }
 
-func Login(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"message": "not implemented"})
-}
+func (h *Handler) LoginTenant(ctx *gin.Context) {
+	var body requests.AuthTenantRequest
 
-func RefreshToken(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"message": "not implemented"})
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		responses.Error(ctx, responses.BadRequest(err.Error()))
+		return
+	}
+
+	apiKey, err := h.sc.AuthService.LoginTenant(body)
+	if err != nil {
+		responses.Error(ctx, err)
+		return
+	}
+
+	responses.Success(ctx, http.StatusOK, "Tenant logged in successfully", gin.H{"apiKey": apiKey})
 }

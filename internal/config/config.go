@@ -8,24 +8,26 @@ import (
 )
 
 type Config struct {
-	Port                 string
-	DBDSN                string
-	JWTSecret            string
-	JWTRefreshSecret     string
-	RabbitMQURL          string
-	ExternalAPIKeyHeader string
+	Port             string
+	DBDSN            string
+	JWTSecret        string
+	JWTRefreshSecret string
+	RabbitMQURL      string
+	EncryptionKey    string
+	APIKeyHeader     string
 }
 
 func Load() *Config {
 	_ = godotenv.Load()
 
 	return &Config{
-		Port:                 getEnv("PORT", "8080"),
-		DBDSN:                requireEnv("DB_DSN"),
-		JWTSecret:            requireEnv("JWT_SECRET"),
-		JWTRefreshSecret:     requireEnv("JWT_REFRESH_SECRET"),
-		RabbitMQURL:          requireEnv("RABBITMQ_URL"),
-		ExternalAPIKeyHeader: getEnv("EXTERNAL_API_KEY_HEADER", "X-External-Api-Key"),
+		Port:             getEnv("PORT", "8080"),
+		DBDSN:            requireEnv("DB_DSN"),
+		JWTSecret:        requireEnv("JWT_SECRET"),
+		JWTRefreshSecret: requireEnv("JWT_REFRESH_SECRET"),
+		RabbitMQURL:      requireEnv("RABBITMQ_URL"),
+		APIKeyHeader:     getEnv("API_KEY_HEADER", "X-Api-Key"),
+		EncryptionKey:    requireEnv("ENCRYPTION_KEY"),
 	}
 }
 
