@@ -25,3 +25,26 @@ func (c *Client) CreateDirectDebitManadate(body CreateDirectDebitManadateRequest
 	result := res.Result().(*CreateDirectDebitManadateResponse)
 	return result, nil
 }
+
+func (c *Client) GetDirectDebitManadateStatus(mandateId string) (*GetDirectDebitManadateResponse, error) {
+	res, err := c.authenticatedRequest(func() *resty.Request {
+		return c.HTTPClient.R().SetPathParams(map[string]string{
+			"mandateId": mandateId,
+		}).SetResultError(errorResponse{}).SetResult(&GetDirectDebitManadateResponse{})
+	}, resty.MethodGet, "/v1/direct-debits/status?mandateId={mandateId}")
+
+	if err != nil {
+		return nil, err
+	}
+	if res.IsStatusFailure() {
+		err := res.Result().(*errorResponse)
+		return nil, &responses.AppError{
+			StatusCode: res.StatusCode(),
+			Message:    err.Description,
+			Data:       err.Data,
+		}
+	}
+
+	result := res.Result().(*GetDirectDebitManadateResponse)
+	return result, nil
+}
