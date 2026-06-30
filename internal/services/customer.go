@@ -30,7 +30,7 @@ func (s *CustomerService) CreateCustomer(tenantId string, body requests.CreateCu
 		return nil, responses.Conflict("A customer with this email already exists")
 	}
 
-	code, err := utils.GenerateCode("CUST", 10)
+	code, err := utils.GenerateCode("CUST")
 	if err != nil {
 		return nil, responses.InternalServerError(err)
 	}
@@ -85,7 +85,6 @@ func (s *CustomerService) GetCustomers(tenantId string, query requests.GetCustom
 	response, err := customerRepository.FindManyPaginated(
 		&models.Customer{TenantID: tenantId},
 		&repositories.FindArgs{
-			Filter: repositories.NewQueryFilter().Where("email=?", "adejaredaniel12@gmail.com"),
 			Preloads: []repositories.Preload{
 				{Association: "Subscriptions"},
 				{Association: "PaymentSources"},

@@ -20,11 +20,23 @@ func GenerateRandomString(length int) (string, error) {
 	return string(randomBytes), nil
 }
 
-func GenerateCode(prefix string, length int) (string, error) {
-	randomString, err := GenerateRandomString(length)
+func GenerateCode(prefix string) (string, error) {
+	defaultCodeLength := 8
+	randomString, err := GenerateRandomString(defaultCodeLength)
 	if err != nil {
 		return "", err
 	}
 
 	return fmt.Sprintf("%s_%s", prefix, randomString), nil
+}
+
+func Or[T any](value *T, defaultValue *T) *T {
+	if value != nil {
+		return value
+	}
+	return defaultValue
+}
+
+func ToPtr[T any](value T) *T {
+	return &value
 }

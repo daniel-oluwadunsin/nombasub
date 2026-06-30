@@ -27,6 +27,7 @@ type Plan struct {
 	TenantID        string       `gorm:"column:tenant_id;type:text;not null" json:"-"`
 	Code            string       `gorm:"column:code;type:text;not null" json:"code"`
 	Amount          int64        `gorm:"column:amount;type:bigint;not null" json:"amount"`
+	Currency        string       `gorm:"column:currency;type:text;not null" json:"currency"`
 	Interval        PlanInterval `gorm:"column:interval;type:text;not null" json:"interval"`
 	IntervalCount   *int         `gorm:"column:interval_count;type:int;" json:"intervalCount"`
 	TrialPeriodDays int          `gorm:"column:trial_period_days;type:int;default:0" json:"trialPeriodDays"`
