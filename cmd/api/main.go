@@ -13,6 +13,7 @@ import (
 	"github.com/daniel-oluwadunsin/nombasub/internal/db"
 	"github.com/daniel-oluwadunsin/nombasub/internal/handlers"
 	"github.com/daniel-oluwadunsin/nombasub/internal/models"
+	"github.com/daniel-oluwadunsin/nombasub/internal/providers/nomba"
 	"github.com/daniel-oluwadunsin/nombasub/internal/queue"
 	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
 	"github.com/daniel-oluwadunsin/nombasub/internal/router"
@@ -42,8 +43,12 @@ func main() {
 		log.Fatalf("auto-migrate failed: %v", err)
 	}
 
+	nombaProvider, err := nomba.New(cfg)
+	if err != nil {
+		log.Fatalf("failed to initialize nomba provider: %v", err)
+	}
 	rc := repositories.NewContainer(database)
-	sc := services.NewContainer(rc)
+	sc := services.NewContainer(rc, nombaProvider)
 	handlers := handlers.New(sc)
 
 	mq, err := queue.NewConnection(cfg.RabbitMQURL)

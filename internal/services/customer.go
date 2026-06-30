@@ -141,3 +141,29 @@ func (s *CustomerService) UpdateCustomer(tenantId string, emailOrCode string, bo
 
 	return updatedCustomer, nil
 }
+
+func (s *CustomerService) GetOrCreateCustomer(tenantId string, customer models.Customer) (*models.Customer, error) {
+	if customer.Email == "" {
+		return nil, responses.BadRequest("Customer email is required")
+	}
+
+	customerDetails, err := s.GetCustomer(tenantId, customer.Email)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	if customerDetails == nil {
+		customerDetails, err = s.CreateCustomer(tenantId, requests.CreateCustomerRequest{
+			Name:        customer.Name,
+			Email:       customer.Email,
+			PhoneNumber: customer.PhoneNumber,
+			ExternalRef: customer.ExternalRef},
+		)
+
+		if err != nil {
+			return nil, responses.InternalServerError(err)
+		}
+	}
+
+	return customerDetails, nil
+}

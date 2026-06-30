@@ -8,26 +8,32 @@ import (
 )
 
 type Config struct {
-	Port             string
-	DBDSN            string
-	JWTSecret        string
-	JWTRefreshSecret string
-	RabbitMQURL      string
-	EncryptionKey    string
-	APIKeyHeader     string
+	Port              string
+	DBDSN             string
+	JWTSecret         string
+	JWTRefreshSecret  string
+	RabbitMQURL       string
+	EncryptionKey     string
+	APIKeyHeader      string
+	NombaClientID     string
+	NombaClientSecret string
+	NombaAccountID    string
 }
 
 func Load() *Config {
 	_ = godotenv.Load()
 
 	return &Config{
-		Port:             getEnv("PORT", "8080"),
-		DBDSN:            requireEnv("DB_DSN"),
-		JWTSecret:        requireEnv("JWT_SECRET"),
-		JWTRefreshSecret: requireEnv("JWT_REFRESH_SECRET"),
-		RabbitMQURL:      requireEnv("RABBITMQ_URL"),
-		APIKeyHeader:     getEnv("API_KEY_HEADER", "X-Api-Key"),
-		EncryptionKey:    requireEnv("ENCRYPTION_KEY"),
+		Port:              getEnv("PORT", "8080"),
+		DBDSN:             requireEnv("DB_DSN"),
+		JWTSecret:         requireEnv("JWT_SECRET"),
+		JWTRefreshSecret:  requireEnv("JWT_REFRESH_SECRET"),
+		RabbitMQURL:       requireEnv("RABBITMQ_URL"),
+		APIKeyHeader:      getEnv("API_KEY_HEADER", "X-Api-Key"),
+		EncryptionKey:     requireEnv("ENCRYPTION_KEY"),
+		NombaClientID:     requireEnv("NOMBA_CLIENT_ID"),
+		NombaClientSecret: requireEnv("NOMBA_CLIENT_SECRET"),
+		NombaAccountID:    requireEnv("NOMBA_ACCOUNT_ID"),
 	}
 }
 

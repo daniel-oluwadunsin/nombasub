@@ -32,7 +32,7 @@ func (c *Client) issueAccessToken(isRefreshing bool) (*Client, error) {
 	}
 
 	res, err := client.
-		SetResultError(&Response[any]{}).
+		SetResultError(&errorResponse{}).
 		SetResult(&GetAccessTokenResponse{}).
 		Post(url)
 
@@ -41,7 +41,7 @@ func (c *Client) issueAccessToken(isRefreshing bool) (*Client, error) {
 	}
 
 	if res.IsStatusFailure() {
-		err := res.ResultError().(*Response[any])
+		err := res.ResultError().(*errorResponse)
 		return nil, &responses.AppError{
 			StatusCode: res.StatusCode(),
 			Message:    err.Description,
@@ -59,18 +59,6 @@ func (c *Client) issueAccessToken(isRefreshing bool) (*Client, error) {
 			return nil, err
 		}
 		c.AccessTokenExpiresAt = &expiresAt
-
-		err = c.TenantConnectionService.SaveTenantNombaConnection(c.AccountID, &TenantConnection{
-			ClientID:             c.ClientID,
-			ClientSecret:         c.ClientSecret,
-			AccountID:            c.AccountID,
-			AccessToken:          c.AccessToken,
-			RefreshToken:         c.RefreshToken,
-			AccessTokenExpiresAt: c.AccessTokenExpiresAt,
-		})
-		if err != nil {
-			return nil, err
-		}
 
 		return c, nil
 	}
