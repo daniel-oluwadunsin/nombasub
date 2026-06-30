@@ -26,7 +26,19 @@ func main() {
 	if err != nil {
 		log.Fatalf("database connection failed: %v", err)
 	}
-	if err := database.AutoMigrate(&models.Tenant{}); err != nil {
+	if err := database.AutoMigrate(
+		&models.Tenant{},
+		&models.Customer{},
+		&models.Plan{},
+		&models.PlanVersion{},
+		&models.Subscription{},
+		&models.Invoice{},
+		&models.PaymentSource{},
+		&models.PaymentIntent{},
+		&models.WebhookDelivery{},
+		&models.WebhookDeliveryAttempt{},
+		&models.NombaWebhookEvent{},
+	); err != nil {
 		log.Fatalf("auto-migrate failed: %v", err)
 	}
 
