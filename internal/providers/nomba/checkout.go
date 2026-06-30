@@ -13,7 +13,7 @@ func (c *Client) CreateCheckoutOrder(body CreateCheckoutOrderRequest) (*CreateCh
 			SetBody(body).
 			SetResultError(&errorResponse{}).
 			SetResult(&CreateCheckoutOrderResponse{})
-	}, resty.MethodPost, "/sandbox/checkout/order")
+	}, resty.MethodPost, "/v1/checkout/order")
 
 	if err != nil {
 		return nil, responses.InternalServerError(err)
