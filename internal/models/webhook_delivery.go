@@ -10,7 +10,7 @@ const (
 
 type WebhookDelivery struct {
 	BaseModel
-	TenantID        string                `gorm:"column:tenant_id;type:uuid;not null" json:"tenantId"`
+	TenantID        string                `gorm:"column:tenant_id;type:uuid;not null" json:"-"`
 	EndpointURL     string                `gorm:"column:endpoint_url;type:text;not null" json:"endpointUrl"`
 	Payload         string                `gorm:"column:payload;type:text;not null" json:"payload"`
 	Status          WebhookDeliveryStatus `gorm:"column:status;type:text;not null" json:"status"`

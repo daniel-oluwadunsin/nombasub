@@ -1,6 +1,13 @@
 package requests
 
-type AuthTenantRequest struct {
+type SignUpTenantRequest struct {
+	BusinessName string `json:"businessName" binding:"required"`
+	AccountID    string `json:"accountId" binding:"required"`
+	ClientID     string `json:"clientId" binding:"required"`
+	ClientSecret string `json:"clientSecret" binding:"required"`
+}
+
+type LoginTenantRequest struct {
 	AccountID    string `json:"accountId" binding:"required"`
 	ClientID     string `json:"clientId" binding:"required"`
 	ClientSecret string `json:"clientSecret" binding:"required"`

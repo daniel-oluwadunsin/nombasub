@@ -24,7 +24,7 @@ type Plan struct {
 	BaseModel
 	Name            string       `gorm:"column:name;type:text;not null" json:"name"`
 	Description     *string      `gorm:"column:description;type:text" json:"description"`
-	TenantID        string       `gorm:"column:tenant_id;type:text;not null" json:"tenantId"`
+	TenantID        string       `gorm:"column:tenant_id;type:text;not null" json:"-"`
 	Code            string       `gorm:"column:code;type:text;not null" json:"code"`
 	Amount          int64        `gorm:"column:amount;type:bigint;not null" json:"amount"`
 	Interval        PlanInterval `gorm:"column:interval;type:text;not null" json:"interval"`

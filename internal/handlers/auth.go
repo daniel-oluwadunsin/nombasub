@@ -10,7 +10,7 @@ import (
 )
 
 func (h *Handler) RegisterTenant(ctx *gin.Context) {
-	var body requests.AuthTenantRequest
+	var body requests.SignUpTenantRequest
 
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		responses.Error(ctx, responses.BadRequest(err.Error()))
@@ -27,7 +27,7 @@ func (h *Handler) RegisterTenant(ctx *gin.Context) {
 }
 
 func (h *Handler) LoginTenant(ctx *gin.Context) {
-	var body requests.AuthTenantRequest
+	var body requests.LoginTenantRequest
 
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		responses.Error(ctx, responses.BadRequest(err.Error()))

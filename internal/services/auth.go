@@ -35,7 +35,7 @@ func (s *AuthService) assignNewApiKey() (string, error) {
 	return apiKey, nil
 }
 
-func (s *AuthService) RegisterTenant(body requests.AuthTenantRequest) (*string, error) {
+func (s *AuthService) RegisterTenant(body requests.SignUpTenantRequest) (*string, error) {
 	tenantRepository := s.rc.TenantRepository
 
 	account, err := tenantRepository.Find(&models.Tenant{AccountID: body.AccountID}, nil)
@@ -59,6 +59,7 @@ func (s *AuthService) RegisterTenant(body requests.AuthTenantRequest) (*string, 
 	}
 
 	tenant := &models.Tenant{
+		BusinessName: &body.BusinessName,
 		AccountID:    body.AccountID,
 		ClientID:     body.ClientID,
 		ClientSecret: encryptedClientSecret.Ciphertext,
@@ -76,7 +77,7 @@ func (s *AuthService) RegisterTenant(body requests.AuthTenantRequest) (*string, 
 	return &tenant.ApiKey, nil
 }
 
-func (s *AuthService) LoginTenant(body requests.AuthTenantRequest) (*string, error) {
+func (s *AuthService) LoginTenant(body requests.LoginTenantRequest) (*string, error) {
 	tenantRepository := s.rc.TenantRepository
 
 	tenant, err := tenantRepository.Find(&models.Tenant{AccountID: body.AccountID}, nil)

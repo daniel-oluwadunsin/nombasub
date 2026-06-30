@@ -12,7 +12,7 @@ const (
 
 type Subscription struct {
 	BaseModel
-	TenantID                     string            `gorm:"column:tenant_id;type:uuid;not null" json:"tenantId"`
+	TenantID                     string            `gorm:"column:tenant_id;type:uuid;not null" json:"-"`
 	CustomerID                   string            `gorm:"column:customer_id;type:uuid;not null" json:"customerId"`
 	PlanID                       string            `gorm:"column:plan_id;type:uuid;not null" json:"planId"`
 	Code                         string            `gorm:"column:code;type:text;not null" json:"code"`
