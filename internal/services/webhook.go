@@ -47,13 +47,6 @@ func (ws *WebhookService) ValidateWebhookSignature(receivedSignature, timestamp 
 	return receivedSignature == expectedSignature
 }
 
-func (ws *WebhookService) updateNombaInitiationStatus(initiationId string, status models.NombaInitiationStatus) error {
-	initiationRepository := ws.rc.NombaInitiationRepository
-
-	_, err := initiationRepository.Update(&models.NombaInitiation{BaseModel: models.BaseModel{ID: initiationId}}, nil)
-	return err
-}
-
 func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest) error {
 	initiationRepository := ws.rc.NombaInitiationRepository
 	customerRepository := ws.rc.CustomerRepository
@@ -195,6 +188,13 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 			if err != nil {
 				return err
 			}
+
+			initiation.Status = models.NombaInitiationStatusCompleted
+			_, err = initiationRepository.Update(initiation, nil)
+			if err != nil {
+				return err
+			}
+
 		}
 	}
 	return nil

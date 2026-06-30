@@ -18,6 +18,7 @@ type Client struct {
 	ClientID             string
 	ClientSecret         string
 	AccountID            string
+	SubAccountID         string
 	WebhookSecret        string
 	AccessToken          *string
 	RefreshToken         *string
@@ -32,6 +33,7 @@ func New(env *config.Config) (*Client, error) {
 		ClientID:     env.NombaClientID,
 		ClientSecret: env.NombaClientSecret,
 		AccountID:    env.NombaAccountID,
+		SubAccountID: env.NombaSubAccountID,
 	}
 	err := client.setNewHTTPClient()
 	if err != nil {
@@ -49,7 +51,7 @@ func (c *Client) setNewHTTPClient() error {
 				return err
 			}
 
-			r.SetHeader("accountId", c.AccountID)
+			r.SetHeader("accountId", c.SubAccountID)
 			r.SetHeader("Authorization", fmt.Sprintf("Bearer %s", accessToken))
 			return nil
 		})

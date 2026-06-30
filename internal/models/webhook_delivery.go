@@ -8,6 +8,31 @@ const (
 	WebhookDeliveryStatusFailed    WebhookDeliveryStatus = "FAILED"
 )
 
+type WebhookDeliveryEventType string
+
+const (
+	WebhookDeliveryEventTypePaymentMethodAttached WebhookDeliveryEventType = "payment_method.attached"
+	WebhookDeliveryEventTypePaymentMethodDetached WebhookDeliveryEventType = "payment_method.detached"
+	WebhookDeliveryEventTypePaymentMethodUpdated  WebhookDeliveryEventType = "payment_method.updated"
+
+	// invoices
+	WebhookDeliveryEventTypeInvoiceUpcoming            WebhookDeliveryEventType = "invoice.upcoming"
+	WebhookDeliveryEventTypeInvoiceCreated             WebhookDeliveryEventType = "invoice.created"
+	WebhookDeliveryEventTypeInvoicePaymentAttempted    WebhookDeliveryEventType = "invoice.payment_attempted"
+	WebhookDeliveryEventTypeInvoicePaid                WebhookDeliveryEventType = "invoice.paid"
+	WebhookDeliveryEventTypeInvoicePaymentFailed       WebhookDeliveryEventType = "invoice.payment_failed"
+	WebhookDeliveryEventTypeInvoiceMarkedUncollectible WebhookDeliveryEventType = "invoice.marked_uncollectible"
+	WebhookDeliveryEventTypeInvoiceVoided              WebhookDeliveryEventType = "invoice.voided"
+	WebhookDeliveryEventTypeInvoiceRefunded            WebhookDeliveryEventType = "invoice.refunded"
+
+	// subscriptions
+	WebhookDeliveryEventTypeSubscriptionCreated   WebhookDeliveryEventType = "subscription.created"
+	WebhookDeliveryEventTypeSubscriptionPastDue   WebhookDeliveryEventType = "subscription.past_due"
+	WebhookDeliveryEventTypeSubscriptionPaused    WebhookDeliveryEventType = "subscription.paused"
+	WebhookDeliveryEventTypeSubscriptionCanceled  WebhookDeliveryEventType = "subscription.canceled"
+	WebhookDeliveryEventTypeSubscriptionCompleted WebhookDeliveryEventType = "subscription.completed"
+)
+
 type WebhookDelivery struct {
 	BaseModel
 	TenantID        string                `gorm:"column:tenant_id;type:uuid;not null" json:"-"`

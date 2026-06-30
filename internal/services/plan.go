@@ -187,3 +187,27 @@ func (s *PlanService) UpdatePlan(tenantId string, planCode string, body requests
 
 	return plan, nil
 }
+
+func (s *PlanService) GetPlanLatestVersion(tenantId string, planCode string) (*models.PlanVersion, error) {
+	planVersionRepository := s.rc.PlanVersionRepository
+
+	planVersion, err := planVersionRepository.Find(
+		&models.PlanVersion{
+			TenantID: tenantId,
+			Code:     planCode,
+		},
+		&repositories.FindArgs{
+			OrderBy: []repositories.OrderBy{{Column: "index", Desc: true}},
+		},
+	)
+
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	if planVersion == nil {
+		return nil, responses.NotFound("Plan not found")
+	}
+
+	return planVersion, nil
+}

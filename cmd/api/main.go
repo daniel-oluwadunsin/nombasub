@@ -27,6 +27,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("database connection failed: %v", err)
 	}
+
 	if err := database.AutoMigrate(
 		&models.Tenant{},
 		&models.Customer{},
