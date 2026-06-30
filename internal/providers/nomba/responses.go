@@ -24,6 +24,16 @@ type CreateDirectDebitManadateResponse = Response[struct {
 	MandateID           string `json:"mandateId"`
 	MerchantReference   string `json:"merchantReference"`
 	CustomerPhoneNumber string `json:"customerPhoneNumber"`
+	Description         string `json:"description"`
+}]
+
+type GetDirectDebitManadateResponse = Response[struct {
+	MandateId             string        `json:"mandateId"`
+	CustomerAccountName   string        `json:"customerAccountName"`
+	CustomerAccountNumber string        `json:"customerAccountNumber"`
+	MandateStatus         MandateStatus `json:"mandateStatus"`
+	RejectionReason       string        `json:"rejectionReason"`
+	MandateAdviceStatus   string        `json:"mandateAdviceStatus"`
 }]
 
 type TransferToAccountResponse = Response[struct {
