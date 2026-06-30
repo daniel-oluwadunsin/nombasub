@@ -10,8 +10,6 @@ import (
 	"resty.dev/v3"
 )
 
-const nombaBaseUrl = "https://sandbox.nomba.com"
-
 type Client struct {
 	BaseURL              string
 	HTTPClient           *resty.Client
@@ -28,8 +26,8 @@ type Client struct {
 
 func New(env *config.Config) (*Client, error) {
 	client := &Client{
-		BaseURL:      nombaBaseUrl,
-		HTTPClient:   resty.New().SetBaseURL(nombaBaseUrl),
+		BaseURL:      env.NombaBaseURL,
+		HTTPClient:   resty.New().SetBaseURL(env.NombaBaseURL),
 		ClientID:     env.NombaClientID,
 		ClientSecret: env.NombaClientSecret,
 		AccountID:    env.NombaAccountID,
@@ -44,14 +42,14 @@ func New(env *config.Config) (*Client, error) {
 
 func (c *Client) setNewHTTPClient() error {
 	c.HTTPClient = resty.New().
-		SetBaseURL(nombaBaseUrl).
+		SetBaseURL(c.BaseURL).
 		AddRequestMiddleware(func(_ *resty.Client, r *resty.Request) error {
 			accessToken, err := c.ensureAccessToken()
 			if err != nil {
 				return err
 			}
 
-			r.SetHeader("accountId", c.SubAccountID)
+			r.SetHeader("accountId", c.AccountID)
 			r.SetHeader("Authorization", fmt.Sprintf("Bearer %s", accessToken))
 			return nil
 		})

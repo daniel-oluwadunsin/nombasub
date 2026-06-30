@@ -17,6 +17,7 @@ type Config struct {
 	APIKeyHeader       string
 	NombaClientID      string
 	NombaClientSecret  string
+	NombaBaseURL       string
 	NombaAccountID     string
 	NombaSubAccountID  string
 	NombaWebhookSecret string
@@ -34,6 +35,7 @@ func Load() *Config {
 		APIKeyHeader:       getEnv("API_KEY_HEADER", "X-Api-Key"),
 		EncryptionKey:      requireEnv("ENCRYPTION_KEY"),
 		NombaClientID:      requireEnv("NOMBA_CLIENT_ID"),
+		NombaBaseURL:       getEnv("NOMBA_BASE_URL", "https://api.nomba.com"),
 		NombaSubAccountID:  requireEnv("NOMBA_SUBACCOUNT_ID"),
 		NombaClientSecret:  requireEnv("NOMBA_CLIENT_SECRET"),
 		NombaAccountID:     requireEnv("NOMBA_ACCOUNT_ID"),
