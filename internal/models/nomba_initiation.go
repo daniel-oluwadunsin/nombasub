@@ -1,0 +1,32 @@
+package models
+
+type NombaInitiationPurpose string
+
+const (
+	NombaInitiationPurposeCardSubscriptionPayment NombaInitiationPurpose = "card_subscription_payment"
+	NombaInitiationPurposeWalletToWalletTransfer  NombaInitiationPurpose = "wallet_to_wallet_transfer"
+	NombaInitiationPurposeChargeCardPayment       NombaInitiationPurpose = "charge_card_payment"
+)
+
+type NombaInitiationStatus string
+
+const (
+	NombaInitiationStatusPending   NombaInitiationStatus = "pending"
+	NombaInitiationStatusCompleted NombaInitiationStatus = "completed"
+	NombaInitiationStatusFailed    NombaInitiationStatus = "failed"
+)
+
+type NombaInitiation struct {
+	BaseModel
+	TenantID  string                 `json:"tenant_id" gorm:"column:tenant_id;type:uuid;not null"`
+	Amount    float64                `json:"amount" gorm:"column:amount;type:numeric(10,2);not null"`
+	Currency  string                 `json:"currency" gorm:"column:currency;type:varchar(3);not null"`
+	Reference string                 `json:"reference" gorm:"column:reference;type:varchar(100);not null"`
+	Purpose   NombaInitiationPurpose `json:"purpose" gorm:"column:purpose;type:varchar(50);not null"`
+	Status    NombaInitiationStatus  `json:"status" gorm:"column:status;type:varchar(20);not null"`
+	Metadata  map[string]interface{} `json:"metadata" gorm:"column:metadata;type:jsonb"`
+}
+
+func (NombaInitiation) TableName() string {
+	return TableNombaInitiation
+}

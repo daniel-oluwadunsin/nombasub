@@ -13,7 +13,7 @@ func (c *Client) issueAccessToken(isRefreshing bool) (*Client, error) {
 	var url string
 
 	if !isRefreshing {
-		url = "/auth/token/issue"
+		url = "/v1/auth/token/issue"
 		client = client.
 			SetHeader("accountId", c.AccountID).
 			SetBody(map[string]any{
@@ -26,7 +26,7 @@ func (c *Client) issueAccessToken(isRefreshing bool) (*Client, error) {
 			return nil, ErrConnectionNotFound
 		}
 
-		url = "/auth/token/refresh"
+		url = "/v1/auth/token/refresh"
 		client = client.
 			SetHeader("accountId", c.AccountID).
 			SetHeader("Authorization", fmt.Sprintf("Bearer %s", *c.AccessToken)).

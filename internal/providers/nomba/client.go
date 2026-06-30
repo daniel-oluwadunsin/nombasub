@@ -10,7 +10,7 @@ import (
 	"resty.dev/v3"
 )
 
-const nombaBaseUrl = "https://sandbox.nomba.com/v1"
+const nombaBaseUrl = "https://sandbox.nomba.com"
 
 type Client struct {
 	BaseURL              string
@@ -18,6 +18,7 @@ type Client struct {
 	ClientID             string
 	ClientSecret         string
 	AccountID            string
+	WebhookSecret        string
 	AccessToken          *string
 	RefreshToken         *string
 	AccessTokenExpiresAt *time.Time

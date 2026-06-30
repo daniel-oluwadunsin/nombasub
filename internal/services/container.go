@@ -10,6 +10,7 @@ type Container struct {
 	CustomerService    *CustomerService
 	PlanService        *PlanService
 	TransactionService *TransactionService
+	WebhookService     *WebhookService
 }
 
 func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider) *Container {
@@ -17,11 +18,13 @@ func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider) *Con
 	customerService := NewCustomerService(rc)
 	planService := NewPlanService(rc)
 	transactionService := NewTransactionService(rc, nombaProvider, customerService)
+	webhookService := NewWebhookService(rc, nombaProvider)
 
 	return &Container{
 		authService,
 		customerService,
 		planService,
 		transactionService,
+		webhookService,
 	}
 }
