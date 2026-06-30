@@ -1,7 +1,8 @@
 package nomba
 
 import (
-	"fmt"
+	"errors"
+	"net/http"
 
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
 	"resty.dev/v3"
@@ -20,15 +21,19 @@ func (c *Client) CreateCheckoutOrder(body CreateCheckoutOrderRequest) (*CreateCh
 	}
 
 	if res.IsStatusFailure() {
-		fmt.Println("Error response from Nomba:", res.String())
 		err := res.ResultError().(*errorResponse)
 		return nil, &responses.AppError{
 			StatusCode: res.StatusCode(),
 			Message:    err.Description,
 			Data:       err.Data,
+			Err:        errors.New(err.Description),
 		}
 	}
 
 	result := res.Result().(*CreateCheckoutOrderResponse)
+	if result.Data.CheckoutLink == "" || result.Data.OrderReference == "" {
+		return nil, responses.NewAppError(http.StatusBadGateway, "Nomba returned an empty checkout response")
+	}
+
 	return result, nil
 }

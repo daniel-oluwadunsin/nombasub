@@ -9,7 +9,7 @@ import (
 )
 
 func (c *Client) issueAccessToken(isRefreshing bool) (*Client, error) {
-	client := resty.New().SetBaseURL(nombaBaseUrl).R()
+	client := resty.New().SetBaseURL(c.BaseURL).R()
 	var url string
 
 	if !isRefreshing {

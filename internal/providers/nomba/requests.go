@@ -5,14 +5,14 @@ type CreateCheckoutOrderRequest struct {
 		CallbackUrl           string                  `json:"callbackUrl" binding:"required"`
 		CustomerEmail         string                  `json:"customerEmail" binding:"required"`
 		Amount                int64                   `json:"amount" binding:"required"`
-		Currency              *string                 `json:"currency" binding:"oneof=NGN"`
-		OrderReference        *string                 `json:"orderReference"`
-		CustomerId            *string                 `json:"customerId"`
-		AccountId             *string                 `json:"accountId"`
-		AllowedPaymentMethods *[]PaymentMethod        `json:"allowedPaymentMethods"`
-		OrderMetaData         *map[string]interface{} `json:"orderMetaData"`
+		Currency              *string                 `json:"currency,omitempty" binding:"oneof=NGN"`
+		OrderReference        *string                 `json:"orderReference,omitempty"`
+		CustomerId            *string                 `json:"customerId,omitempty"`
+		AccountId             *string                 `json:"accountId,omitempty"`
+		AllowedPaymentMethods *[]PaymentMethod        `json:"allowedPaymentMethods,omitempty"`
+		OrderMetaData         *map[string]interface{} `json:"orderMetaData,omitempty"`
 	} `json:"order"`
-	TokenizeCard *bool `json:"tokenizeCard"`
+	TokenizeCard *bool `json:"tokenizeCard,omitempty"`
 }
 
 type TransferToAccountRequest struct {

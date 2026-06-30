@@ -9,7 +9,6 @@ import (
 	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
 	"github.com/daniel-oluwadunsin/nombasub/internal/requests"
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -96,7 +95,11 @@ func (ts *TransactionService) InitializeCardTransaction(tenantId, tenantAccountI
 		checkoutOrder.TokenizeCard = utils.ToPtr(true)
 		checkoutOrder.Order.AccountId = utils.ToPtr(tenantAccountId)
 
-		reference := fmt.Sprintf("nombasub_%s_%s", tenantId, uuid.New().String())
+		reference, err := utils.GenerateRandomString(24)
+		if err != nil {
+			return err
+		}
+		reference = fmt.Sprintf("nombasub_%s", reference)
 		checkoutOrder.Order.OrderReference = &reference
 
 		nombaInitiation, err := nombaInitiationRepository.Create(&models.NombaInitiation{
