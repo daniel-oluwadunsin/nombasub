@@ -13,10 +13,15 @@ type Container struct {
 }
 
 func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider) *Container {
+	authService := NewAuthService(rc)
+	customerService := NewCustomerService(rc)
+	planService := NewPlanService(rc)
+	transactionService := NewTransactionService(rc, nombaProvider, customerService)
+
 	return &Container{
-		AuthService:        NewAuthService(rc),
-		CustomerService:    NewCustomerService(rc),
-		PlanService:        NewPlanService(rc),
-		TransactionService: NewTransactionService(rc, nombaProvider),
+		authService,
+		customerService,
+		planService,
+		transactionService,
 	}
 }

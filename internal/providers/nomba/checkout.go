@@ -1,6 +1,8 @@
 package nomba
 
 import (
+	"fmt"
+
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
 	"resty.dev/v3"
 )
@@ -19,6 +21,7 @@ func (c *Client) CreateCheckoutOrder(body CreateCheckoutOrderRequest) (*CreateCh
 
 	if res.IsStatusFailure() {
 		err := res.ResultError().(*errorResponse)
+		fmt.Println("Error response from Nomba:", res.String())
 		return nil, &responses.AppError{
 			StatusCode: res.StatusCode(),
 			Message:    err.Description,

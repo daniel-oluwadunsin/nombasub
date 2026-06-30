@@ -58,7 +58,7 @@ func (s *AuthService) RegisterTenant(body requests.SignUpTenantRequest) (*string
 		ApiKey:       apiKey,
 	}
 
-	_, err = tenantRepository.Create(tenant)
+	_, err = tenantRepository.Create(tenant, nil)
 	if err != nil {
 		return nil, responses.InternalServerError(err)
 	}
@@ -95,7 +95,7 @@ func (s *AuthService) SetWebhookUrl(tenantId string, webhookUrl string) error {
 
 	tenant.WebhookUrl = &webhookUrl
 
-	_, err = tenantRepository.Update(tenant)
+	_, err = tenantRepository.Update(tenant, nil)
 	if err != nil {
 		return responses.InternalServerError(err)
 	}

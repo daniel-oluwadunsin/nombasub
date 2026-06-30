@@ -46,6 +46,11 @@ func New(
 			plans.PUT("/:planCode", handlers.UpdatePlan)
 		}
 
+		transactions := v1.Group("/checkout")
+		{
+			transactions.POST("/order", handlers.InitializeCardTransaction) // same nomba route path for card transactions.
+		}
+
 	}
 
 	return r

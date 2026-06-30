@@ -10,7 +10,7 @@ import (
 	"resty.dev/v3"
 )
 
-const nombaBaseUrl = "https://sandbox.api.nomba.com/v1"
+const nombaBaseUrl = "https://sandbox.nomba.com/v1"
 
 type Client struct {
 	BaseURL              string
