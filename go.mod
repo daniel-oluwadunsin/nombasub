@@ -1,6 +1,6 @@
 module github.com/daniel-oluwadunsin/nombasub
 
-go 1.25
+go 1.24.13
 
 require (
 	github.com/gin-gonic/gin v1.10.0
