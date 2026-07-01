@@ -5,6 +5,7 @@ import (
 
 	"github.com/daniel-oluwadunsin/nombasub/internal/helpers/utils"
 	"github.com/daniel-oluwadunsin/nombasub/internal/models"
+	"github.com/daniel-oluwadunsin/nombasub/internal/queue"
 	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
 	"github.com/daniel-oluwadunsin/nombasub/internal/requests"
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
@@ -14,13 +15,15 @@ type SubscriptionService struct {
 	rc              *repositories.Container
 	planService     *PlanService
 	customerService *CustomerService
+	publisher       *queue.Publisher
 }
 
-func NewSubscriptionService(rc *repositories.Container, planService *PlanService, customerService *CustomerService) *SubscriptionService {
+func NewSubscriptionService(rc *repositories.Container, planService *PlanService, customerService *CustomerService, publisher *queue.Publisher) *SubscriptionService {
 	return &SubscriptionService{
 		rc:              rc,
 		planService:     planService,
 		customerService: customerService,
+		publisher:       publisher,
 	}
 }
 
@@ -130,6 +133,16 @@ func (s *SubscriptionService) CreateSubscription(tenantId string, body requests.
 
 	subscription, err = subscriptionRepository.Create(subscription, nil)
 	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	if err := queue.EnqueueTenantWebhook(
+		s.rc,
+		s.publisher,
+		tenantId,
+		models.WebhookDeliveryEventTypeSubscriptionCreated,
+		subscription,
+	); err != nil {
 		return nil, responses.InternalServerError(err)
 	}
 

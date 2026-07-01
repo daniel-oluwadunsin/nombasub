@@ -50,8 +50,6 @@ func main() {
 		log.Fatalf("failed to initialize nomba provider: %v", err)
 	}
 	rc := repositories.NewContainer(database)
-	sc := services.NewContainer(rc, nombaProvider)
-	handlers := handlers.New(sc)
 
 	mq, err := queue.NewConnection(cfg.RabbitMQURL)
 	if err != nil {
@@ -59,10 +57,16 @@ func main() {
 	}
 	defer mq.Close()
 
+	if err := mq.DeclareQueue(queue.SendTenantWebhookQueue); err != nil {
+		log.Fatalf("failed to declare tenant webhook queue: %v", err)
+	}
 	publisher := queue.NewPublisher(mq)
 	consumer := queue.NewConsumer(mq)
-	_ = publisher
-	_ = consumer
+	consumer.Register(queue.SendTenantWebhookQueue, queue.SendTenantWebhookHandler(rc))
+	consumer.Start()
+
+	sc := services.NewContainer(rc, nombaProvider, publisher)
+	handlers := handlers.New(sc)
 
 	scheduler := cron.NewScheduler()
 	if err := scheduler.Register("0 * * * * *", "example", cron.ExampleJob); err != nil {

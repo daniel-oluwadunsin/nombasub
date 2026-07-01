@@ -1,5 +1,7 @@
 package nomba
 
+import "github.com/daniel-oluwadunsin/nombasub/internal/models"
+
 type CreateCheckoutOrderRequest struct {
 	Order struct {
 		CallbackUrl           string                  `json:"callbackUrl" binding:"required"`
@@ -66,6 +68,7 @@ type NombaWebhookRequest struct {
 			AliasAccountType      string          `json:"aliasAccountType"`
 			MerchantTxRef         string          `json:"merchantTxRef"`
 			TokenizedCardPayment  string          `json:"tokenizedCardPayment"`
+			IsSubscriptionPayment bool            `json:"isSubscriptionPayment"`
 		} `json:"transaction"`
 		Customer struct {
 			BankCode      string `json:"bankCode"`
@@ -74,15 +77,17 @@ type NombaWebhookRequest struct {
 			AccountNumber string `json:"accountNumber"`
 		} `json:"customer"`
 		Order struct {
-			OrderReference  string  `json:"orderReference"`
-			OrderId         string  `json:"orderId"`
-			Amount          float64 `json:"amount"`
-			Currency        string  `json:"currency"`
-			PaymentMethod   string  `json:"paymentMethod"`
-			CardType        string  `json:"cardType"`
-			CardLast4Digits string  `json:"cardLast4Digits"`
-			AccountId       string  `json:"accountId"`
-			CardCurrency    string  `json:"cardCurrency"`
+			OrderReference       string  `json:"orderReference"`
+			OrderId              string  `json:"orderId"`
+			Amount               float64 `json:"amount"`
+			Currency             string  `json:"currency"`
+			PaymentMethod        string  `json:"paymentMethod"`
+			CardType             string  `json:"cardType"`
+			CardLast4Digits      string  `json:"cardLast4Digits"`
+			AccountId            string  `json:"accountId"`
+			CardCurrency         string  `json:"cardCurrency"`
+			IsSubscription       bool    `json:"isSubscription"`
+			SubscriptionPlanCode string  `json:"subscriptionPlanCode"`
 		} `json:"order"`
 		TokenizedCardData *struct {
 			TokenKey         string `json:"tokenKey"`
@@ -91,5 +96,6 @@ type NombaWebhookRequest struct {
 			TokenExpiryMonth string `json:"tokenExpiryMonth"`
 			CardPan          string `json:"cardPan"`
 		} `json:"tokenizedCardData"`
+		Subscription *models.Subscription `json:"subscription,omitempty"`
 	} `json:"data"`
 }

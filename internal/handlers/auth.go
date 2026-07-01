@@ -53,11 +53,11 @@ func (h *Handler) SetWebhookUrl(ctx *gin.Context) {
 
 	tenantId := ctx.GetString(middleware.TenantIdCtxKey)
 
-	err := h.sc.AuthService.SetWebhookUrl(tenantId, body.WebhookUrl)
+	secret, err := h.sc.AuthService.SetWebhookUrl(tenantId, body.WebhookUrl)
 	if err != nil {
 		responses.Error(ctx, err)
 		return
 	}
 
-	responses.Success(ctx, http.StatusOK, "Webhook URL set successfully", nil)
+	responses.Success(ctx, http.StatusOK, "Webhook URL set successfully", gin.H{"webhookSecret": *secret})
 }

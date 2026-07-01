@@ -22,6 +22,8 @@ type PaymentSource struct {
 	Card       *CardPaymentSource  `gorm:"embedded;embeddedPrefix:card_" json:"card,omitempty"`
 	Bank       *BankPaymentSource  `gorm:"embedded;embeddedPrefix:bank_" json:"bank,omitempty"`
 	Status     PaymentSourceStatus `gorm:"column:status;type:text;not null;default:'active'" json:"status"`
+
+	Customer *Customer `gorm:"foreignKey:CustomerID;references:ID" json:"customer,omitempty"`
 }
 
 type CardPaymentSource struct {

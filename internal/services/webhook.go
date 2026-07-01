@@ -3,17 +3,21 @@ package services
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/daniel-oluwadunsin/nombasub/internal/helpers/utils"
 	"github.com/daniel-oluwadunsin/nombasub/internal/models"
 	"github.com/daniel-oluwadunsin/nombasub/internal/providers/nomba"
+	"github.com/daniel-oluwadunsin/nombasub/internal/queue"
 	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
+	"gorm.io/gorm"
 )
 
 type WebhookService struct {
 	rc          *repositories.Container
 	nombaClient nomba.Provider
+	publisher   *queue.Publisher
 }
 
 func NewWebhookService(rc *repositories.Container, nombaClient nomba.Provider) *WebhookService {
@@ -54,155 +58,220 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 	paymentSourceRepository := ws.rc.PaymentSourceRepository
 	settlementRepository := ws.rc.SettlementRepository
 	nombaClient := ws.nombaClient
+	db := ws.rc.DB
 
-	if payload.Data.Transaction.Type == nomba.TransactionTypeOnlineCheckout {
-		orderId := payload.Data.Order.OrderId
-		orderReference := utils.OrStrings(payload.Data.Order.OrderReference, payload.Data.Transaction.MerchantTxRef)
+	err := db.Transaction(func(trx *gorm.DB) error {
+		if payload.Data.Transaction.Type == nomba.TransactionTypeOnlineCheckout {
+			orderId := payload.Data.Order.OrderId
+			orderReference := utils.OrStrings(payload.Data.Order.OrderReference, payload.Data.Transaction.MerchantTxRef)
 
-		initiation, err := initiationRepository.FindRaw(&repositories.FindArgs{
-			Filter: repositories.NewQueryFilter().Where(
-				"reference = ? OR nomba_order_id = ?", orderReference, orderId,
-			),
-		})
-
-		if err != nil {
-			return err
-		}
-
-		if initiation == nil {
-			return nil
-		}
-
-		if initiation.Purpose == models.NombaInitiationPurposeCardSubscriptionPayment {
-			tokenizedCard := payload.Data.TokenizedCardData
-			if tokenizedCard == nil {
-				return errors.New("tokenized card data is missing in the webhook payload")
-			}
-			tenantId := initiation.Metadata["nombaSubTenantId"].(string)
-			customerCode := initiation.Metadata["nombaSubCustomerCode"].(string)
-			planCode := initiation.Metadata["nombaSubPlanCode"].(string)
-			planVersionNumber := initiation.Metadata["nombaSubPlanVersion"].(int)
-
-			customer, err := customerRepository.Find(&models.Customer{TenantID: tenantId, Code: customerCode}, nil)
+			initiation, err := initiationRepository.FindRaw(&repositories.FindArgs{
+				Filter: repositories.NewQueryFilter().Where(
+					"reference = ? OR nomba_order_id = ?", orderReference, orderId,
+				),
+				Trx: trx,
+			})
 
 			if err != nil {
 				return err
 			}
 
-			planVersion, err := planVersionRepository.Find(
-				&models.PlanVersion{
-					TenantID: tenantId,
-					Code:     planCode,
-					Index:    planVersionNumber,
-				},
-				nil,
-			)
-			if err != nil {
-				return err
+			if initiation == nil {
+				return nil
 			}
 
-			if customer == nil || planVersion == nil {
-				return errors.New("customer or plan not found for the given tenant and codes")
-			}
+			if initiation.Purpose == models.NombaInitiationPurposeCardSubscriptionPayment {
+				tokenizedCard := payload.Data.TokenizedCardData
+				if tokenizedCard == nil {
+					return errors.New("tokenized card data is missing in the webhook payload")
+				}
+				tenantId := initiation.Metadata["nombaSubTenantId"].(string)
+				customerCode := initiation.Metadata["nombaSubCustomerCode"].(string)
+				planCode := initiation.Metadata["nombaSubPlanCode"].(string)
+				planVersionNumber := initiation.Metadata["nombaSubPlanVersion"].(int)
+				tenantOrderReference := initiation.Metadata["nombaSubTenantOrderReference"].(string)
 
-			card, err := paymentSourceRepository.Find(&models.PaymentSource{
-				TenantID:   tenantId,
-				CustomerID: customer.ID,
-				Type:       models.PaymentSourceTypeCard,
-				Card: &models.CardPaymentSource{
-					AuthorizationToken: &tokenizedCard.TokenKey,
-				},
-			}, nil)
-
-			if err != nil {
-				return err
-			}
-
-			if card == nil {
-				card, err = paymentSourceRepository.Create(&models.PaymentSource{
-					TenantID:   tenantId,
-					CustomerID: customer.ID,
-					Type:       models.PaymentSourceTypeCard,
-					Card: &models.CardPaymentSource{
-						Type:               utils.OrStrings(tokenizedCard.CardType, payload.Data.Order.CardType),
-						Pan:                &tokenizedCard.CardPan,
-						Last4Digits:        &payload.Data.Order.CardLast4Digits,
-						Currency:           &payload.Data.Order.CardCurrency,
-						AuthorizationToken: &tokenizedCard.TokenKey,
-					},
-					Status: models.PaymentSourceStatusActive,
-				}, nil)
+				customer, err := customerRepository.Find(&models.Customer{TenantID: tenantId, Code: customerCode}, &repositories.FindArgs{Trx: trx})
 
 				if err != nil {
 					return err
 				}
+
+				planVersion, err := planVersionRepository.Find(
+					&models.PlanVersion{
+						TenantID: tenantId,
+						Code:     planCode,
+						Index:    planVersionNumber,
+					},
+					&repositories.FindArgs{Trx: trx},
+				)
+				if err != nil {
+					return err
+				}
+
+				if customer == nil || planVersion == nil {
+					return errors.New("customer or plan not found for the given tenant and codes")
+				}
+
+				card, err := paymentSourceRepository.Find(&models.PaymentSource{
+					TenantID:   tenantId,
+					CustomerID: customer.ID,
+					Type:       models.PaymentSourceTypeCard,
+					Card: &models.CardPaymentSource{
+						AuthorizationToken: &tokenizedCard.TokenKey,
+					},
+				}, &repositories.FindArgs{Trx: trx})
+
+				if err != nil {
+					return err
+				}
+
+				if card == nil {
+					card, err = paymentSourceRepository.Create(&models.PaymentSource{
+						TenantID:   tenantId,
+						CustomerID: customer.ID,
+						Type:       models.PaymentSourceTypeCard,
+						Card: &models.CardPaymentSource{
+							Type:               utils.OrStrings(tokenizedCard.CardType, payload.Data.Order.CardType),
+							Pan:                &tokenizedCard.CardPan,
+							Last4Digits:        &payload.Data.Order.CardLast4Digits,
+							Currency:           &payload.Data.Order.CardCurrency,
+							AuthorizationToken: &tokenizedCard.TokenKey,
+						},
+						Status: models.PaymentSourceStatusActive,
+					}, trx)
+
+					if err != nil {
+						return err
+					}
+
+					if err := trx.Preload("Customer", &card).Error; err != nil {
+						return err
+					}
+
+					err = queue.EnqueueTenantWebhook(
+						ws.rc,
+						ws.publisher,
+						tenantId,
+						models.WebhookDeliveryEventTypePaymentMethodAttached,
+						card,
+					)
+
+					if err != nil {
+						log.Printf("Error occurred while enqueuing tenant webhook: %v", err)
+					}
+				}
+
+				subscription := &models.Subscription{
+					TenantID:          tenantId,
+					CustomerID:        customer.ID,
+					PlanID:            planVersion.PlanID,
+					PlanVersionID:     planVersion.ID,
+					PaymentSourceID:   card.ID,
+					PaymentSourceType: models.PaymentSourceTypeCard,
+					Interval:          planVersion.Interval,
+					Amount:            planVersion.Amount,
+					IntervalCount:     planVersion.IntervalCount,
+					TrialPeriodDays:   planVersion.TrialPeriodDays,
+					Currency:          planVersion.Currency,
+					InvoiceLimit:      planVersion.InvoiceLimit,
+				}
+
+				if planVersion.TrialPeriodDays != 0 {
+					subscription.TrialStartDate = utils.ToPtr(time.Now())
+					subscription.TrialEndDate = utils.ToPtr(time.Now().AddDate(0, 0, planVersion.TrialPeriodDays))
+
+					startDate, endDate := utils.GetBillingPeriod(*subscription.TrialEndDate, planVersion.Interval, planVersion.IntervalCount)
+					subscription.CurrentBillingCycleStart = &startDate
+					subscription.CurrentBillingCycleEnd = &endDate
+				}
+
+				if planVersion.TrialPeriodDays == 0 {
+					startDate, endDate := utils.GetBillingPeriod(time.Now(), planVersion.Interval, planVersion.IntervalCount)
+					subscription.CurrentBillingCycleStart = &startDate
+					subscription.CurrentBillingCycleEnd = &endDate
+					subscription.StartedAt = utils.ToPtr(time.Now())
+				}
+
+				subscription.Code, err = utils.GenerateCode("SUB")
+				if err != nil {
+					return err
+				}
+
+				_, err = ws.rc.SubscriptionRepository.Create(subscription, nil)
+				if err != nil {
+					return err
+				}
+
+				amountAfterFee := nombaClient.DeductFee(float64(planVersion.Amount) / 100)
+
+				_, err = settlementRepository.Create(&models.Settlement{
+					TenantID:       tenantId,
+					Purpose:        initiation.Purpose,
+					Amount:         amountAfterFee,
+					Currency:       planVersion.Currency,
+					Status:         models.SettlementStatusPending,
+					Reference:      initiation.Reference,
+					SettlementTime: time.Now().Add(25 * time.Hour),
+				}, nil)
+				if err != nil {
+					return err
+				}
+
+				initiation.Status = models.NombaInitiationStatusCompleted
+				_, err = initiationRepository.Update(initiation, nil)
+				if err != nil {
+					return err
+				}
+
+				err = queue.EnqueueTenantWebhook(
+					ws.rc,
+					ws.publisher,
+					tenantId,
+					models.WebhookDeliveryEventTypeSubscriptionCreated,
+					subscription,
+				)
+
+				if err != nil {
+					log.Printf("Error occurred while enqueuing tenant webhook: %v", err)
+				}
+
+				payload.Data.Subscription = subscription
+				payload.Data.Transaction.IsSubscriptionPayment = true
+				payload.Data.Order.IsSubscription = true
+				payload.Data.Order.SubscriptionPlanCode = planVersion.Code
+				payload.Data.Order.OrderReference = tenantOrderReference
+
+				err = queue.EnqueueTenantWebhook(
+					ws.rc,
+					ws.publisher,
+					tenantId,
+					models.WebhookDeliveryEventTypeOrderSuccess,
+					payload.Data,
+				)
+
+				if err != nil {
+					log.Printf("Error occurred while enqueuing tenant webhook: %v", err)
+				}
+
+				err = queue.EnqueueTenantWebhook(
+					ws.rc,
+					ws.publisher,
+					tenantId,
+					models.WebhookDeliveryEventTypeSubscriptionCreated,
+					subscription,
+				)
+
+				if err != nil {
+					log.Printf("Error occurred while enqueuing tenant webhook: %v", err)
+				}
 			}
-
-			subscription := &models.Subscription{
-				TenantID:          tenantId,
-				CustomerID:        customer.ID,
-				PlanID:            planVersion.PlanID,
-				PlanVersionID:     planVersion.ID,
-				PaymentSourceID:   card.ID,
-				PaymentSourceType: models.PaymentSourceTypeCard,
-				Interval:          planVersion.Interval,
-				Amount:            planVersion.Amount,
-				IntervalCount:     planVersion.IntervalCount,
-				TrialPeriodDays:   planVersion.TrialPeriodDays,
-				Currency:          planVersion.Currency,
-				InvoiceLimit:      planVersion.InvoiceLimit,
-			}
-
-			if planVersion.TrialPeriodDays != 0 {
-				subscription.TrialStartDate = utils.ToPtr(time.Now())
-				subscription.TrialEndDate = utils.ToPtr(time.Now().AddDate(0, 0, planVersion.TrialPeriodDays))
-
-				startDate, endDate := utils.GetBillingPeriod(*subscription.TrialEndDate, planVersion.Interval, planVersion.IntervalCount)
-				subscription.CurrentBillingCycleStart = &startDate
-				subscription.CurrentBillingCycleEnd = &endDate
-			}
-
-			if planVersion.TrialPeriodDays == 0 {
-				startDate, endDate := utils.GetBillingPeriod(time.Now(), planVersion.Interval, planVersion.IntervalCount)
-				subscription.CurrentBillingCycleStart = &startDate
-				subscription.CurrentBillingCycleEnd = &endDate
-				subscription.StartedAt = utils.ToPtr(time.Now())
-			}
-
-			subscription.Code, err = utils.GenerateCode("SUB")
-			if err != nil {
-				return err
-			}
-
-			_, err = ws.rc.SubscriptionRepository.Create(subscription, nil)
-			if err != nil {
-				return err
-			}
-
-			amountAfterFee := nombaClient.DeductFee(float64(planVersion.Amount) / 100)
-
-			_, err = settlementRepository.Create(&models.Settlement{
-				TenantID:       tenantId,
-				Purpose:        initiation.Purpose,
-				Amount:         amountAfterFee,
-				Currency:       planVersion.Currency,
-				Status:         models.SettlementStatusPending,
-				Reference:      initiation.Reference,
-				SettlementTime: time.Now().Add(25 * time.Hour),
-			}, nil)
-			if err != nil {
-				return err
-			}
-
-			initiation.Status = models.NombaInitiationStatusCompleted
-			_, err = initiationRepository.Update(initiation, nil)
-			if err != nil {
-				return err
-			}
-
 		}
-	}
-	return nil
+
+		return nil
+	})
+
+	return err
 }
 
 func (ws *WebhookService) handlePaymentFailed(payload nomba.NombaWebhookRequest) error {

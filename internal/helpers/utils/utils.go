@@ -1,7 +1,10 @@
 package utils
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"time"
 
@@ -75,4 +78,20 @@ func GetBillingPeriod(startDate time.Time, interval models.PlanInterval, billing
 	default:
 		return startDate, startDate
 	}
+}
+
+func HashOutgoingPayload(eventType, webhookId, tenantId, timestamp string, webhookSecret string) string {
+	hashingPayload := fmt.Sprintf(
+		"%s:%s:%s:%s",
+		eventType,
+		webhookId,
+		tenantId,
+		timestamp,
+	)
+
+	h := hmac.New(sha256.New, []byte(webhookSecret))
+	h.Write([]byte(hashingPayload))
+	hash := h.Sum(nil)
+
+	return base64.StdEncoding.EncodeToString(hash)
 }

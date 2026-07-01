@@ -58,6 +58,11 @@ func (c *Connection) Channel() *amqp.Channel {
 	return c.ch
 }
 
+func (c *Connection) DeclareQueue(name string) error {
+	_, err := c.ch.QueueDeclare(name, true, false, false, false, nil)
+	return err
+}
+
 func (c *Connection) Close() {
 	if c.ch != nil {
 		c.ch.Close()
