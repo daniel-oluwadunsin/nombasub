@@ -32,6 +32,7 @@ type Invoice struct {
 	NextPaymentAttemptAt *time.Time    `gorm:"column:next_payment_attempt_at;type:timestamp;" json:"nextPaymentAttemptAt"`
 	AttemptCount         int           `gorm:"column:attempt_count;type:int;not null;default:0" json:"attemptCount"`
 	FailureReason        *string       `gorm:"column:failure_reason;type:text;" json:"failureReason"`
+	CheckoutLink         *string       `gorm:"column:checkout_link;type:text;" json:"checkoutLink"`
 }
 
 func (Invoice) TableName() string {

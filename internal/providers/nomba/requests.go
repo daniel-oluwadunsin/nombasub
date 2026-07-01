@@ -2,19 +2,26 @@ package nomba
 
 import "github.com/daniel-oluwadunsin/nombasub/internal/models"
 
+type NombaOrder struct {
+	CallbackUrl           string                  `json:"callbackUrl" binding:"required"`
+	CustomerEmail         string                  `json:"customerEmail" binding:"required"`
+	Amount                int64                   `json:"amount" binding:"required"`
+	Currency              *string                 `json:"currency,omitempty" binding:"oneof=NGN"`
+	OrderReference        *string                 `json:"orderReference,omitempty"`
+	CustomerId            *string                 `json:"customerId,omitempty"`
+	AccountId             *string                 `json:"accountId,omitempty"`
+	AllowedPaymentMethods *[]PaymentMethod        `json:"allowedPaymentMethods,omitempty"`
+	OrderMetaData         *map[string]interface{} `json:"orderMetaData,omitempty"`
+}
+
 type CreateCheckoutOrderRequest struct {
-	Order struct {
-		CallbackUrl           string                  `json:"callbackUrl" binding:"required"`
-		CustomerEmail         string                  `json:"customerEmail" binding:"required"`
-		Amount                int64                   `json:"amount" binding:"required"`
-		Currency              *string                 `json:"currency,omitempty" binding:"oneof=NGN"`
-		OrderReference        *string                 `json:"orderReference,omitempty"`
-		CustomerId            *string                 `json:"customerId,omitempty"`
-		AccountId             *string                 `json:"accountId,omitempty"`
-		AllowedPaymentMethods *[]PaymentMethod        `json:"allowedPaymentMethods,omitempty"`
-		OrderMetaData         *map[string]interface{} `json:"orderMetaData,omitempty"`
-	} `json:"order"`
-	TokenizeCard *bool `json:"tokenizeCard,omitempty"`
+	Order        NombaOrder `json:"order"`
+	TokenizeCard *bool      `json:"tokenizeCard,omitempty"`
+}
+
+type ChargeCardRequest struct {
+	Order    NombaOrder `json:"order"`
+	TokenKey string     `json:"tokenKey"`
 }
 
 type TransferToAccountRequest struct {
@@ -60,6 +67,7 @@ type NombaWebhookRequest struct {
 			TransactionID         string          `json:"transactionId"`
 			AliasAccountName      string          `json:"aliasAccountName"`
 			ResponseCode          string          `json:"responseCode"`
+			ResponseCodeMessage   string          `json:"responseCodeMessage"`
 			OriginatingFrom       string          `json:"originatingFrom"`
 			TransactionAmount     float64         `json:"transactionAmount"`
 			Narration             string          `json:"narration"`

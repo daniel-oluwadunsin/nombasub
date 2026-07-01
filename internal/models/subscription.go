@@ -5,9 +5,11 @@ import "time"
 type SubscriptionStatus string
 
 const (
-	SubscriptionStatusActive   SubscriptionStatus = "active"
-	SubscriptionStatusCanceled SubscriptionStatus = "canceled"
-	SubscriptionStatusExpired  SubscriptionStatus = "expired"
+	SubscriptionStatusActive    SubscriptionStatus = "active"
+	SubscriptionStatusCanceled  SubscriptionStatus = "canceled"
+	SubscriptionStatusExpired   SubscriptionStatus = "expired"
+	SubscriptionStatusAttention SubscriptionStatus = "attention"
+	SubscriptionStatusPaused    SubscriptionStatus = "paused"
 )
 
 type Subscription struct {
@@ -17,8 +19,8 @@ type Subscription struct {
 	PlanID                       string             `gorm:"column:plan_id;type:uuid;not null" json:"planId"`
 	Code                         string             `gorm:"column:code;type:text;not null" json:"code"`
 	PlanVersionID                string             `gorm:"column:plan_version_id;type:uuid;not null" json:"planVersionId"`
-	PaymentSourceID              string             `gorm:"column:payment_source_id;type:uuid;not null" json:"paymentSourceId"`
-	PaymentSourceType            PaymentSourceType  `gorm:"column:payment_source_type;type:text;not null" json:"paymentSourceType"`
+	PaymentSourceID              *string            `gorm:"column:payment_source_id;type:uuid;" json:"paymentSourceId"`
+	PaymentSourceType            *PaymentSourceType `gorm:"column:payment_source_type;type:text;" json:"paymentSourceType"`
 	Interval                     PlanInterval       `gorm:"column:interval;type:text;not null" json:"interval"`
 	Amount                       int64              `gorm:"column:amount;type:bigint;not null" json:"amount"`
 	Currency                     string             `gorm:"column:currency;type:text;not null" json:"currency"`
@@ -26,6 +28,7 @@ type Subscription struct {
 	TrialPeriodDays              int                `gorm:"column:trial_period_days;type:int;default:0" json:"trialPeriodDays"`
 	TrialStartDate               *time.Time         `gorm:"column:trial_start_date;type:timestamp;" json:"trialStartDate"`
 	TrialEndDate                 *time.Time         `gorm:"column:trial_end_date;type:timestamp;" json:"trialEndDate"`
+	TrialEndingSoonSent          bool               `gorm:"column:trial_ending_soon_sent;type:boolean;not null;default:false" json:"trialEndingSoonSent"`
 	CurrentBillingCycleStart     *time.Time         `gorm:"column:current_billing_cycle_start;type:timestamp;" json:"currentBillingCycleStart"`
 	CurrentBillingCycleEnd       *time.Time         `gorm:"column:current_billing_cycle_end;type:timestamp;" json:"currentBillingCycleEnd"`
 	CancelledAtEndOfBillingCycle bool               `gorm:"column:cancelled_at_end_of_billing_cycle;type:boolean;default:false" json:"cancelledAtEndOfBillingCycle"`

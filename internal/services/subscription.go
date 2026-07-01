@@ -89,10 +89,13 @@ func (s *SubscriptionService) CreateSubscription(tenantId string, body requests.
 		if err != nil {
 			return nil, responses.InternalServerError(err)
 		}
+	}
 
-		if customerPaymentSource == nil {
-			return nil, responses.NotFound("Customer does not have any payment method attached")
-		}
+	var paymentSourceID *string
+	var paymentSourceType *models.PaymentSourceType
+	if customerPaymentSource != nil {
+		paymentSourceID = &customerPaymentSource.ID
+		paymentSourceType = &customerPaymentSource.Type
 	}
 
 	subscription := &models.Subscription{
@@ -100,8 +103,8 @@ func (s *SubscriptionService) CreateSubscription(tenantId string, body requests.
 		CustomerID:        customer.ID,
 		PlanID:            latestPlan.PlanID,
 		PlanVersionID:     latestPlan.ID,
-		PaymentSourceID:   customerPaymentSource.CustomerID,
-		PaymentSourceType: models.PaymentSourceTypeCard,
+		PaymentSourceID:   paymentSourceID,
+		PaymentSourceType: paymentSourceType,
 		Interval:          latestPlan.Interval,
 		Amount:            latestPlan.Amount,
 		IntervalCount:     latestPlan.IntervalCount,

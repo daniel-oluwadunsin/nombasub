@@ -12,6 +12,7 @@ import (
 	"github.com/daniel-oluwadunsin/nombasub/internal/cron"
 	"github.com/daniel-oluwadunsin/nombasub/internal/db"
 	"github.com/daniel-oluwadunsin/nombasub/internal/handlers"
+	"github.com/daniel-oluwadunsin/nombasub/internal/mail"
 	"github.com/daniel-oluwadunsin/nombasub/internal/models"
 	"github.com/daniel-oluwadunsin/nombasub/internal/providers/nomba"
 	"github.com/daniel-oluwadunsin/nombasub/internal/queue"
@@ -51,6 +52,9 @@ func main() {
 	}
 	rc := repositories.NewContainer(database)
 
+	mailer := mail.NewMailer(cfg.MailerUser, cfg.MailerPassword)
+	_ = mailer
+
 	mq, err := queue.NewConnection(cfg.RabbitMQURL)
 	if err != nil {
 		log.Fatalf("rabbitmq connection failed: %v", err)
@@ -69,8 +73,11 @@ func main() {
 	handlers := handlers.New(sc)
 
 	scheduler := cron.NewScheduler()
-	if err := scheduler.Register("0 * * * * *", "example", cron.ExampleJob); err != nil {
-		log.Fatalf("failed to register cron job: %v", err)
+	if err := cron.RegisterSubscriptionLifecycleJobs(scheduler, sc.SubscriptionLifecycleService); err != nil {
+		log.Fatalf("failed to register subscription lifecycle cron jobs: %v", err)
+	}
+	if err := cron.RegisterInvoiceProcessingJobs(scheduler, sc.InvoiceService); err != nil {
+		log.Fatalf("failed to register invoice processing cron jobs: %v", err)
 	}
 	scheduler.Start()
 	defer scheduler.Stop()

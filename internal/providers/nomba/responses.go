@@ -20,6 +20,8 @@ type CreateCheckoutOrderResponse = Response[struct {
 	OrderReference string `json:"orderReference"`
 }]
 
+type ChargeCardResponse = Response[struct{}]
+
 type CreateDirectDebitManadateResponse = Response[struct {
 	MandateID           string `json:"mandateId"`
 	MerchantReference   string `json:"merchantReference"`

@@ -24,14 +24,18 @@ const (
 	WebhookDeliveryEventTypeInvoiceMarkedUncollectible WebhookDeliveryEventType = "invoice.marked_uncollectible"
 	WebhookDeliveryEventTypeInvoiceVoided              WebhookDeliveryEventType = "invoice.voided"
 	WebhookDeliveryEventTypeInvoiceRefunded            WebhookDeliveryEventType = "invoice.refunded"
+	WebhookDeliveryEventTypeCheckoutCreated            WebhookDeliveryEventType = "checkout.created"
 	WebhookDeliveryEventTypeOrderSuccess               WebhookDeliveryEventType = "payment_success" // same as nomba incoming webhook
 
 	// subscriptions
-	WebhookDeliveryEventTypeSubscriptionCreated   WebhookDeliveryEventType = "subscription.created"
-	WebhookDeliveryEventTypeSubscriptionPastDue   WebhookDeliveryEventType = "subscription.past_due"
-	WebhookDeliveryEventTypeSubscriptionPaused    WebhookDeliveryEventType = "subscription.paused"
-	WebhookDeliveryEventTypeSubscriptionCanceled  WebhookDeliveryEventType = "subscription.canceled"
-	WebhookDeliveryEventTypeSubscriptionCompleted WebhookDeliveryEventType = "subscription.completed"
+	WebhookDeliveryEventTypeSubscriptionCreated        WebhookDeliveryEventType = "subscription.created"
+	WebhookDeliveryEventTypeSubscriptionPastDue        WebhookDeliveryEventType = "subscription.past_due"
+	WebhookDeliveryEventTypeSubscriptionPaused         WebhookDeliveryEventType = "subscription.paused"
+	WebhookDeliveryEventTypeSubscriptionCanceled       WebhookDeliveryEventType = "subscription.canceled"
+	WebhookDeliveryEventTypeSubscriptionCompleted      WebhookDeliveryEventType = "subscription.completed"
+	WebhookDeliveryEventTypeSubscriptionCardExpiring   WebhookDeliveryEventType = "subscription.card_expiring"
+	WebhookDeliveryEventTypeSubscriptionTrialEnding    WebhookDeliveryEventType = "subscription.trial_ending_soon"
+	WebhookDeliveryEventTypeSubscriptionBillingStarted WebhookDeliveryEventType = "subscription.billing_started"
 )
 
 type WebhookDelivery struct {
