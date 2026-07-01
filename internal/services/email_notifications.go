@@ -89,6 +89,43 @@ func enqueueCardExpiringEmail(rc *repositories.Container, publisher *queue.Publi
 	}
 }
 
+func enqueueSubscriptionPausedEmail(rc *repositories.Container, publisher *queue.Publisher, subscription *models.Subscription, invoice *models.Invoice, reason string) {
+	var ctx models.EmailContext
+	var err error
+	if invoice != nil {
+		ctx, err = invoiceEmailContext(rc, invoice)
+	} else {
+		ctx, err = subscriptionEmailContext(rc, subscription)
+	}
+	if err != nil {
+		log.Printf("subscription paused email context failed for subscription %s: %v", subscription.ID, err)
+		return
+	}
+
+	applyTemplateCopy(models.EmailTemplateSubscriptionPaused, &ctx)
+	if reason != "" {
+		ctx.Body = fmt.Sprintf("%s Reason: %s.", ctx.Body, reason)
+		ctx.SecondaryNote = fmt.Sprintf("Failure reason: %s", reason)
+	}
+
+	entityID := subscription.ID
+	if invoice != nil {
+		entityID = invoice.ID
+	}
+
+	if err := queue.EnqueueEmail(
+		rc,
+		publisher,
+		ctx.CustomerEmail,
+		emailSubject(models.EmailTemplateSubscriptionPaused, ctx),
+		models.EmailTemplateSubscriptionPaused,
+		ctx,
+		fmt.Sprintf("%s:%s", models.EmailTemplateSubscriptionPaused, entityID),
+	); err != nil {
+		log.Printf("subscription paused email enqueue failed for subscription %s: %v", subscription.ID, err)
+	}
+}
+
 func subscriptionEmailContext(rc *repositories.Container, subscription *models.Subscription) (models.EmailContext, error) {
 	customer, err := rc.CustomerRepository.FindById(subscription.CustomerID, nil)
 	if err != nil {
@@ -216,6 +253,11 @@ func applyTemplateCopy(templateName models.EmailTemplateName, ctx *models.EmailC
 		ctx.Preheader = "Update your payment method to avoid failed subscription payments."
 		ctx.Intro = "Your saved card is expiring soon."
 		ctx.Body = "Please update your subscription payment method before the card expires."
+	case models.EmailTemplateSubscriptionPaused:
+		ctx.Title = "Your subscription is paused"
+		ctx.Preheader = "We could not complete your subscription payment."
+		ctx.Intro = "Your subscription has been paused."
+		ctx.Body = "We could not complete the latest invoice payment, so billing has been paused until the payment issue is resolved."
 	}
 }
 
@@ -231,6 +273,8 @@ func emailSubject(templateName models.EmailTemplateName, ctx models.EmailContext
 		return fmt.Sprintf("Receipt for invoice %s", ctx.InvoiceCode)
 	case models.EmailTemplateSubscriptionCardExpiring:
 		return "Your subscription card is expiring soon"
+	case models.EmailTemplateSubscriptionPaused:
+		return "Your subscription has been paused"
 	default:
 		return ctx.Title
 	}

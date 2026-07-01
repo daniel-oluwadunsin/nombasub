@@ -15,6 +15,7 @@ const (
 	EmailTemplatePaymentReceipt           EmailTemplateName = "payment_receipt.html"
 	EmailTemplateInvoicePaid              EmailTemplateName = "invoice_paid.html"
 	EmailTemplateSubscriptionCardExpiring EmailTemplateName = "subscription_card_expiring.html"
+	EmailTemplateSubscriptionPaused       EmailTemplateName = "subscription_paused.html"
 )
 
 type EmailContext struct {

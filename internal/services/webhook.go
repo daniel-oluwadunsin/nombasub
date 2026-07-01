@@ -576,6 +576,7 @@ func (ws *WebhookService) handlePaymentFailed(payload nomba.NombaWebhookRequest)
 			if err := queue.EnqueueTenantWebhook(ws.rc, ws.publisher, tenantId, models.WebhookDeliveryEventTypeSubscriptionPaused, subscription); err != nil {
 				log.Printf("Error occurred while enqueuing tenant webhook: %v", err)
 			}
+			enqueueSubscriptionPausedEmail(ws.rc, ws.publisher, subscription, invoice, reason)
 		}
 
 		return nil

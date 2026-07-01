@@ -380,6 +380,7 @@ func (s *InvoiceService) failInvoice(invoice *models.Invoice, subscription *mode
 
 	s.enqueueWebhook(subscription.TenantID, eventType, invoice)
 	s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeSubscriptionPaused, subscription)
+	enqueueSubscriptionPausedEmail(s.rc, s.publisher, subscription, invoice, reason)
 	return nil
 }
 
