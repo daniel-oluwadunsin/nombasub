@@ -6,6 +6,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/daniel-oluwadunsin/nombasub/internal/models"
 	"gopkg.in/gomail.v2"
 )
 
@@ -27,7 +28,7 @@ type SendMailOpts struct {
 	Body    string
 }
 
-func (m *Mailer) SendMail(to, subject, body, templateName string, context interface{}) error {
+func (m *Mailer) SendMail(to, subject, body string, templateName models.EmailTemplateName, context interface{}) error {
 	fromEmail := m.User
 
 	msg := gomail.NewMessage()
@@ -36,7 +37,7 @@ func (m *Mailer) SendMail(to, subject, body, templateName string, context interf
 	msg.SetHeader("To", to)
 	msg.SetHeader("Subject", subject)
 
-	body, err := renderTemplate(templateName, context)
+	body, err := renderTemplate(string(templateName), context)
 	if err != nil {
 		return err
 	}
@@ -54,7 +55,7 @@ func renderTemplate[T interface{}](templateName string, context T) (string, erro
 	if err != nil {
 		return "", err
 	}
-	templatePath := path.Join(cwd, "internal/mailer/templates", templateName)
+	templatePath := path.Join(cwd, "internal/mail/templates", string(templateName))
 	tmpl, err := template.ParseFiles(templatePath)
 
 	if err != nil {

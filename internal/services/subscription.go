@@ -149,6 +149,23 @@ func (s *SubscriptionService) CreateSubscription(tenantId string, body requests.
 		return nil, responses.InternalServerError(err)
 	}
 
+	enqueueSubscriptionEmail(
+		s.rc,
+		s.publisher,
+		models.EmailTemplateSubscriptionCreated,
+		subscription,
+		string(models.EmailTemplateSubscriptionCreated)+":"+subscription.ID,
+	)
+	if subscription.TrialPeriodDays > 0 {
+		enqueueSubscriptionEmail(
+			s.rc,
+			s.publisher,
+			models.EmailTemplateTrialStarted,
+			subscription,
+			string(models.EmailTemplateTrialStarted)+":"+subscription.ID,
+		)
+	}
+
 	return subscription, nil
 }
 

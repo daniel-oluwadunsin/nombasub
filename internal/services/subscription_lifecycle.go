@@ -56,6 +56,7 @@ func (s *SubscriptionLifecycleService) ProcessCardExpirations() {
 				"subscription":  subscription,
 				"paymentSource": paymentSource,
 			})
+			enqueueCardExpiringEmail(s.rc, s.publisher, &subscription, &paymentSource)
 		}
 
 		paymentSource.ExpirationMailSent = true
@@ -85,6 +86,7 @@ func (s *SubscriptionLifecycleService) sendTrialEndingSoonWebhooks() {
 
 	for _, subscription := range subscriptions {
 		s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeSubscriptionTrialEnding, subscription)
+		enqueueSubscriptionEmail(s.rc, s.publisher, models.EmailTemplateTrialEndingSoon, &subscription, string(models.EmailTemplateTrialEndingSoon)+":"+subscription.ID)
 		subscription.TrialEndingSoonSent = true
 		if _, err := s.rc.SubscriptionRepository.Update(&subscription, nil); err != nil {
 			log.Printf("trial lifecycle cron: failed to update subscription %s: %v", subscription.ID, err)
@@ -114,6 +116,7 @@ func (s *SubscriptionLifecycleService) startBillingForEndedTrials() {
 			continue
 		}
 		s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeSubscriptionBillingStarted, subscription)
+		enqueueSubscriptionEmail(s.rc, s.publisher, models.EmailTemplateTrialEndedBillingStarted, &subscription, string(models.EmailTemplateTrialEndedBillingStarted)+":"+subscription.ID)
 	}
 }
 

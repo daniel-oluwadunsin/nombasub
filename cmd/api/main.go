@@ -42,6 +42,7 @@ func main() {
 		&models.WebhookDeliveryAttempt{},
 		&models.NombaWebhookEvent{},
 		&models.NombaInitiation{},
+		&models.EmailDelivery{},
 	); err != nil {
 		log.Fatalf("auto-migrate failed: %v", err)
 	}
@@ -53,7 +54,6 @@ func main() {
 	rc := repositories.NewContainer(database)
 
 	mailer := mail.NewMailer(cfg.MailerUser, cfg.MailerPassword)
-	_ = mailer
 
 	mq, err := queue.NewConnection(cfg.RabbitMQURL)
 	if err != nil {
@@ -64,9 +64,13 @@ func main() {
 	if err := mq.DeclareQueue(queue.SendTenantWebhookQueue); err != nil {
 		log.Fatalf("failed to declare tenant webhook queue: %v", err)
 	}
+	if err := mq.DeclareQueue(queue.SendEmailQueue); err != nil {
+		log.Fatalf("failed to declare email queue: %v", err)
+	}
 	publisher := queue.NewPublisher(mq)
 	consumer := queue.NewConsumer(mq)
 	consumer.Register(queue.SendTenantWebhookQueue, queue.SendTenantWebhookHandler(rc))
+	consumer.Register(queue.SendEmailQueue, queue.SendEmailHandler(rc, mailer))
 	consumer.Start()
 
 	sc := services.NewContainer(rc, nombaProvider, publisher)

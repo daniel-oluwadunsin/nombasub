@@ -341,6 +341,22 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 					return err
 				}
 
+				if subscriptionId == "" {
+					enqueueSubscriptionEmail(ws.rc, ws.publisher, models.EmailTemplateSubscriptionCreated, subscription, string(models.EmailTemplateSubscriptionCreated)+":"+subscription.ID)
+					if subscription.TrialPeriodDays > 0 {
+						enqueueSubscriptionEmail(ws.rc, ws.publisher, models.EmailTemplateTrialStarted, subscription, string(models.EmailTemplateTrialStarted)+":"+subscription.ID)
+					}
+				}
+				if subscription.TrialPeriodDays == 0 {
+					enqueueSubscriptionEmail(ws.rc, ws.publisher, models.EmailTemplateSubscriptionActivated, subscription, string(models.EmailTemplateSubscriptionActivated)+":"+subscription.ID)
+				}
+				if invoice != nil {
+					enqueueInvoiceEmail(ws.rc, ws.publisher, models.EmailTemplateInvoiceCreated, invoice, string(models.EmailTemplateInvoiceCreated)+":"+invoice.ID)
+					enqueueInvoiceEmail(ws.rc, ws.publisher, models.EmailTemplatePaymentSuccessful, invoice, string(models.EmailTemplatePaymentSuccessful)+":"+invoice.ID)
+					enqueueInvoiceEmail(ws.rc, ws.publisher, models.EmailTemplatePaymentReceipt, invoice, string(models.EmailTemplatePaymentReceipt)+":"+invoice.ID)
+					enqueueInvoiceEmail(ws.rc, ws.publisher, models.EmailTemplateInvoicePaid, invoice, string(models.EmailTemplateInvoicePaid)+":"+invoice.ID)
+				}
+
 				amountAfterFee := nombaClient.DeductFee(float64(planVersion.Amount) / 100)
 
 				_, err = settlementRepository.Create(&models.Settlement{

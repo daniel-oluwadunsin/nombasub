@@ -57,23 +57,17 @@ func (s *InvoiceService) CreateUpcomingInvoices() {
 			continue
 		}
 		s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeInvoiceUpcoming, invoice)
+		enqueueInvoiceEmail(s.rc, s.publisher, models.EmailTemplateUpcomingInvoice, invoice, string(models.EmailTemplateUpcomingInvoice)+":"+invoice.ID)
 	}
 }
 
 func (s *InvoiceService) ProcessDueInvoices() {
 	subscriptions, err := s.rc.SubscriptionRepository.FindManyRaw(&repositories.FindArgs{
 		Filter: repositories.NewQueryFilter().Where(
-			"subscriptions.status = ? AND subscriptions.current_billing_cycle_start <= ? AND (subscriptions.trial_period_days = 0 OR subscriptions.started_at IS NOT NULL) AND invoice.id IS NOT NULL",
+			"subscriptions.status = ? AND subscriptions.current_billing_cycle_start <= ? AND (subscriptions.trial_period_days = 0 OR subscriptions.started_at IS NOT NULL)",
 			models.SubscriptionStatusActive,
 			time.Now(),
 		),
-		Joins: []repositories.Join{
-			*repositories.NewJoin(
-				"LEFT JOIN invoices as invoice ON invoice.subscription_id = subscriptions.id AND invoice.due_at = subscriptions.current_billing_cycle_start AND invoice.status IN (?, ?)",
-				models.InvoiceStatusOpen,
-				models.InvoiceStatusDraft,
-			),
-		},
 	})
 	if err != nil {
 		log.Printf("invoice processing cron: failed to load subscriptions: %v", err)
@@ -111,6 +105,7 @@ func (s *InvoiceService) processDueSubscription(subscription *models.Subscriptio
 	}
 	if opened {
 		s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeInvoiceCreated, invoice)
+		enqueueInvoiceEmail(s.rc, s.publisher, models.EmailTemplateInvoiceCreated, invoice, string(models.EmailTemplateInvoiceCreated)+":"+invoice.ID)
 	}
 
 	if invoice.CheckoutLink != nil || invoice.AttemptCount > 0 {
@@ -267,6 +262,7 @@ func (s *InvoiceService) createCheckout(invoice *models.Invoice, subscription *m
 		"invoice":     invoice,
 		"checkoutUrl": response.Data.CheckoutLink,
 	})
+	enqueueCheckoutEmail(s.rc, s.publisher, invoice, response.Data.CheckoutLink)
 
 	return nil
 }
@@ -407,6 +403,9 @@ func (s *InvoiceService) markInvoicePaid(invoice *models.Invoice, subscription *
 	}
 
 	s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeInvoicePaid, invoice)
+	enqueueInvoiceEmail(s.rc, s.publisher, models.EmailTemplatePaymentSuccessful, invoice, string(models.EmailTemplatePaymentSuccessful)+":"+invoice.ID)
+	enqueueInvoiceEmail(s.rc, s.publisher, models.EmailTemplatePaymentReceipt, invoice, string(models.EmailTemplatePaymentReceipt)+":"+invoice.ID)
+	enqueueInvoiceEmail(s.rc, s.publisher, models.EmailTemplateInvoicePaid, invoice, string(models.EmailTemplateInvoicePaid)+":"+invoice.ID)
 	return nil
 }
 
