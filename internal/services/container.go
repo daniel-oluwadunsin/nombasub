@@ -6,11 +6,12 @@ import (
 )
 
 type Container struct {
-	AuthService        *AuthService
-	CustomerService    *CustomerService
-	PlanService        *PlanService
-	TransactionService *TransactionService
-	WebhookService     *WebhookService
+	AuthService         *AuthService
+	CustomerService     *CustomerService
+	PlanService         *PlanService
+	TransactionService  *TransactionService
+	WebhookService      *WebhookService
+	SubscriptionService *SubscriptionService
 }
 
 func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider) *Container {
@@ -19,6 +20,7 @@ func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider) *Con
 	planService := NewPlanService(rc)
 	transactionService := NewTransactionService(rc, nombaProvider, customerService)
 	webhookService := NewWebhookService(rc, nombaProvider)
+	subscriptionService := NewSubscriptionService(rc, planService, customerService)
 
 	return &Container{
 		authService,
@@ -26,5 +28,6 @@ func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider) *Con
 		planService,
 		transactionService,
 		webhookService,
+		subscriptionService,
 	}
 }

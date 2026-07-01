@@ -169,6 +169,11 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 				subscription.StartedAt = utils.ToPtr(time.Now())
 			}
 
+			subscription.Code, err = utils.GenerateCode("SUB")
+			if err != nil {
+				return err
+			}
+
 			_, err = ws.rc.SubscriptionRepository.Create(subscription, nil)
 			if err != nil {
 				return err

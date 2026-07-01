@@ -70,27 +70,6 @@ type TransferToAccountResponse = Response[struct {
 	TimeCreated *string `json:"timeCreated"`
 }]
 
-// success": true,
-//     "message": "PAYMENT SUCCESSFUL",
-//     "order": {
-//       "orderId": "a1b2c3d4-e5f6-47a8-xxxx-xxxxxxxxxxxx",
-//       "orderReference": "test-order-001",
-//       "amount": "4000.00",
-//       "currency": "NGN",
-//       "customerEmail": "test@example.com"
-//     },
-//     "transactionDetails": {
-//       "transactionDate": "2026-03-31T10:00:00Z",
-//       "paymentReference": "WEB-ONLINE_C-abc123-550e4c3a-...",
-//       "statusCode": "PAYMENT SUCCESSFUL",
-//       "tokenizedCardPayment": "false"
-//     },
-//     "cardDetails": {
-//       "cardPan": "543462 **** **** 2808",
-//       "cardType": "MASTERCARD",
-//       "cardCurrency": "NGN"
-//     }
-
 type VerifyCheckoutOrderResponse = Response[struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
