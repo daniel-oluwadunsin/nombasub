@@ -182,6 +182,15 @@ func (s *PlanService) UpdatePlan(tenantId string, planCode string, body requests
 			return err
 		}
 
+		if body.UpdateExistingSubscriptions {
+			if err := trx.Model(&models.Subscription{}).
+				Where("tenant_id = ? and plan_id = ?", tenantId, plan.ID).
+				Select("NextBillingCyclePlanVersion").
+				Updates(models.Subscription{NextBillingCyclePlanVersion: &newPlanVersion.ID}).Error; err != nil {
+				return err
+			}
+		}
+
 		return nil
 	})
 

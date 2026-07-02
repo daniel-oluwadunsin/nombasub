@@ -17,10 +17,11 @@ type PaymentIntent struct {
 	TenantID                           string              `gorm:"column:tenant_id;type:uuid;not null" json:"-"`
 	CustomerID                         string              `gorm:"column:customer_id;type:uuid;not null" json:"customerId"`
 	SubscriptionID                     string              `gorm:"column:subscription_id;type:uuid;not null" json:"subscriptionId"`
+	InvoiceID                          *string             `gorm:"column:invoice_id;type:uuid;" json:"invoiceId"`
 	PlanID                             string              `gorm:"column:plan_id;type:uuid;not null" json:"planId"`
 	PlanVersionID                      string              `gorm:"column:plan_version_id;type:uuid;not null" json:"planVersionId"`
-	PaymentSourceID                    string              `gorm:"column:payment_source_id;type:uuid;not null" json:"paymentSourceId"`
-	PaymentSourceType                  PaymentSourceType   `gorm:"column:payment_source_type;type:text;not null" json:"paymentSourceType"`
+	PaymentSourceID                    *string             `gorm:"column:payment_source_id;type:uuid;" json:"paymentSourceId"`
+	PaymentSourceType                  *PaymentSourceType  `gorm:"column:payment_source_type;type:text;" json:"paymentSourceType"`
 	Code                               string              `gorm:"column:code;type:text;not null" json:"code"`
 	Reference                          string              `gorm:"column:reference;type:text;" json:"reference"`
 	IdempotencyKey                     *string             `gorm:"column:idempotency_key;type:text;" json:"idempotencyKey"`

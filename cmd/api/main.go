@@ -12,6 +12,7 @@ import (
 	"github.com/daniel-oluwadunsin/nombasub/internal/cron"
 	"github.com/daniel-oluwadunsin/nombasub/internal/db"
 	"github.com/daniel-oluwadunsin/nombasub/internal/handlers"
+	"github.com/daniel-oluwadunsin/nombasub/internal/mail"
 	"github.com/daniel-oluwadunsin/nombasub/internal/models"
 	"github.com/daniel-oluwadunsin/nombasub/internal/providers/nomba"
 	"github.com/daniel-oluwadunsin/nombasub/internal/queue"
@@ -41,6 +42,7 @@ func main() {
 		&models.WebhookDeliveryAttempt{},
 		&models.NombaWebhookEvent{},
 		&models.NombaInitiation{},
+		&models.EmailDelivery{},
 	); err != nil {
 		log.Fatalf("auto-migrate failed: %v", err)
 	}
@@ -50,8 +52,8 @@ func main() {
 		log.Fatalf("failed to initialize nomba provider: %v", err)
 	}
 	rc := repositories.NewContainer(database)
-	sc := services.NewContainer(rc, nombaProvider)
-	handlers := handlers.New(sc)
+
+	mailer := mail.NewMailer(cfg.MailerUser, cfg.MailerPassword)
 
 	mq, err := queue.NewConnection(cfg.RabbitMQURL)
 	if err != nil {
@@ -59,14 +61,27 @@ func main() {
 	}
 	defer mq.Close()
 
+	if err := mq.DeclareQueue(queue.SendTenantWebhookQueue); err != nil {
+		log.Fatalf("failed to declare tenant webhook queue: %v", err)
+	}
+	if err := mq.DeclareQueue(queue.SendEmailQueue); err != nil {
+		log.Fatalf("failed to declare email queue: %v", err)
+	}
 	publisher := queue.NewPublisher(mq)
 	consumer := queue.NewConsumer(mq)
-	_ = publisher
-	_ = consumer
+	consumer.Register(queue.SendTenantWebhookQueue, queue.SendTenantWebhookHandler(rc))
+	consumer.Register(queue.SendEmailQueue, queue.SendEmailHandler(rc, mailer))
+	consumer.Start()
+
+	sc := services.NewContainer(rc, nombaProvider, publisher)
+	handlers := handlers.New(sc)
 
 	scheduler := cron.NewScheduler()
-	if err := scheduler.Register("0 * * * * *", "example", cron.ExampleJob); err != nil {
-		log.Fatalf("failed to register cron job: %v", err)
+	if err := cron.RegisterSubscriptionLifecycleJobs(scheduler, sc.SubscriptionLifecycleService); err != nil {
+		log.Fatalf("failed to register subscription lifecycle cron jobs: %v", err)
+	}
+	if err := cron.RegisterInvoiceProcessingJobs(scheduler, sc.InvoiceService); err != nil {
+		log.Fatalf("failed to register invoice processing cron jobs: %v", err)
 	}
 	scheduler.Start()
 	defer scheduler.Stop()

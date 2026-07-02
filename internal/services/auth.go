@@ -81,24 +81,29 @@ func (s *AuthService) LoginTenant(body requests.LoginTenantRequest) (*string, er
 	return &tenant.ApiKey, nil
 }
 
-func (s *AuthService) SetWebhookUrl(tenantId string, webhookUrl string) error {
+func (s *AuthService) SetWebhookUrl(tenantId string, webhookUrl string) (*string, error) {
 	tenantRepository := s.rc.TenantRepository
 
 	tenant, err := tenantRepository.FindById(tenantId, nil)
 	if err != nil {
-		return responses.InternalServerError(err)
+		return nil, responses.InternalServerError(err)
 	}
 
 	if tenant == nil {
-		return responses.NotFound("Tenant not found")
+		return nil, responses.NotFound("Tenant not found")
 	}
 
 	tenant.WebhookUrl = &webhookUrl
 
 	_, err = tenantRepository.Update(tenant, nil)
 	if err != nil {
-		return responses.InternalServerError(err)
+		return nil, responses.InternalServerError(err)
 	}
 
-	return nil
+	webhookSecret, err := utils.GenerateRandomString(64)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	return &webhookSecret, nil
 }

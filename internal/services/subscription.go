@@ -5,6 +5,7 @@ import (
 
 	"github.com/daniel-oluwadunsin/nombasub/internal/helpers/utils"
 	"github.com/daniel-oluwadunsin/nombasub/internal/models"
+	"github.com/daniel-oluwadunsin/nombasub/internal/queue"
 	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
 	"github.com/daniel-oluwadunsin/nombasub/internal/requests"
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
@@ -14,10 +15,16 @@ type SubscriptionService struct {
 	rc              *repositories.Container
 	planService     *PlanService
 	customerService *CustomerService
+	publisher       *queue.Publisher
 }
 
-func NewSubscriptionService(rc *repositories.Container, planService *PlanService) *SubscriptionService {
-	return &SubscriptionService{rc: rc, planService: planService}
+func NewSubscriptionService(rc *repositories.Container, planService *PlanService, customerService *CustomerService, publisher *queue.Publisher) *SubscriptionService {
+	return &SubscriptionService{
+		rc:              rc,
+		planService:     planService,
+		customerService: customerService,
+		publisher:       publisher,
+	}
 }
 
 func (s *SubscriptionService) CreateSubscription(tenantId string, body requests.CreateSubscriptionRequest) (*models.Subscription, error) {
@@ -82,10 +89,13 @@ func (s *SubscriptionService) CreateSubscription(tenantId string, body requests.
 		if err != nil {
 			return nil, responses.InternalServerError(err)
 		}
+	}
 
-		if customerPaymentSource == nil {
-			return nil, responses.NotFound("Customer does not have any payment method attached")
-		}
+	var paymentSourceID *string
+	var paymentSourceType *models.PaymentSourceType
+	if customerPaymentSource != nil {
+		paymentSourceID = &customerPaymentSource.ID
+		paymentSourceType = &customerPaymentSource.Type
 	}
 
 	subscription := &models.Subscription{
@@ -93,8 +103,8 @@ func (s *SubscriptionService) CreateSubscription(tenantId string, body requests.
 		CustomerID:        customer.ID,
 		PlanID:            latestPlan.PlanID,
 		PlanVersionID:     latestPlan.ID,
-		PaymentSourceID:   customerPaymentSource.CustomerID,
-		PaymentSourceType: models.PaymentSourceTypeCard,
+		PaymentSourceID:   paymentSourceID,
+		PaymentSourceType: paymentSourceType,
 		Interval:          latestPlan.Interval,
 		Amount:            latestPlan.Amount,
 		IntervalCount:     latestPlan.IntervalCount,
@@ -119,9 +129,128 @@ func (s *SubscriptionService) CreateSubscription(tenantId string, body requests.
 		subscription.StartedAt = utils.ToPtr(time.Now())
 	}
 
+	subscription.Code, err = utils.GenerateCode("SUB")
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
 	subscription, err = subscriptionRepository.Create(subscription, nil)
 	if err != nil {
 		return nil, responses.InternalServerError(err)
+	}
+
+	if err := queue.EnqueueTenantWebhook(
+		s.rc,
+		s.publisher,
+		tenantId,
+		models.WebhookDeliveryEventTypeSubscriptionCreated,
+		subscription,
+	); err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	enqueueSubscriptionEmail(
+		s.rc,
+		s.publisher,
+		models.EmailTemplateSubscriptionCreated,
+		subscription,
+		string(models.EmailTemplateSubscriptionCreated)+":"+subscription.ID,
+	)
+	if subscription.TrialPeriodDays > 0 {
+		enqueueSubscriptionEmail(
+			s.rc,
+			s.publisher,
+			models.EmailTemplateTrialStarted,
+			subscription,
+			string(models.EmailTemplateTrialStarted)+":"+subscription.ID,
+		)
+	}
+
+	return subscription, nil
+}
+
+func (s *SubscriptionService) GetSubscriptions(tenantId string, query requests.GetSubscriptionQuery) (*responses.PaginatedResponse[models.Subscription], error) {
+	subscriptionRepository := s.rc.SubscriptionRepository
+	planRepository := s.rc.PlanRepository
+	customerRepository := s.rc.CustomerRepository
+	filter := &models.Subscription{TenantID: tenantId}
+
+	var customer *models.Customer
+	var plan *models.Plan
+	var err error
+
+	if query.Plan != nil {
+		plan, err = planRepository.FindRaw(&repositories.FindArgs{
+			Filter: repositories.NewQueryFilter().Where("tenant_id = ? AND (code = ? OR id = ?)", tenantId, *query.Plan, *query.Plan),
+		})
+		if err != nil {
+			return nil, responses.InternalServerError(err)
+		}
+		if plan == nil {
+			return nil, responses.NotFound("Plan does not exist")
+		}
+		filter.PlanID = plan.ID
+	}
+
+	if query.Customer != nil {
+		customer, err = customerRepository.FindRaw(&repositories.FindArgs{
+			Filter: repositories.NewQueryFilter().Where("tenant_id = ? AND (code = ? OR id = ? OR external_ref = ? or email ILIKE ?)",
+				tenantId,
+				*query.Customer,
+				*query.Customer,
+				*query.Customer,
+				*query.Customer,
+			),
+		})
+		if err != nil {
+			return nil, responses.InternalServerError(err)
+		}
+		if customer == nil {
+			return nil, responses.NotFound("Customer does not exist")
+		}
+		filter.CustomerID = customer.ID
+	}
+
+	response, err := subscriptionRepository.FindManyPaginated(
+		filter,
+		&repositories.FindArgs{
+			Preloads: []repositories.Preload{
+				{Association: "Customer"},
+				{Association: "Plan"},
+				{Association: "PaymentSource"},
+			},
+			OrderBy: []repositories.OrderBy{{Column: "created_at", Desc: true}},
+		},
+		&query.PaginationQuery,
+	)
+
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	return response, nil
+}
+
+func (s *SubscriptionService) GetSubscription(tenantId, idOrCode string) (*models.Subscription, error) {
+	subscriptionRepository := s.rc.SubscriptionRepository
+
+	subscription, err := subscriptionRepository.FindRaw(
+		&repositories.FindArgs{
+			Filter: repositories.NewQueryFilter().Where("tenant_id = ? AND (id = ? or code = ?)", tenantId, idOrCode, idOrCode),
+			Preloads: []repositories.Preload{
+				{Association: "Customer"},
+				{Association: "Plan"},
+				{Association: "PaymentSource"},
+			},
+		},
+	)
+
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	if subscription == nil {
+		return nil, responses.NotFound("Subscription not found")
 	}
 
 	return subscription, nil

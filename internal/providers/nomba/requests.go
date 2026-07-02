@@ -1,18 +1,27 @@
 package nomba
 
+import "github.com/daniel-oluwadunsin/nombasub/internal/models"
+
+type NombaOrder struct {
+	CallbackUrl           string                  `json:"callbackUrl" binding:"required"`
+	CustomerEmail         string                  `json:"customerEmail" binding:"required"`
+	Amount                int64                   `json:"amount" binding:"required"`
+	Currency              *string                 `json:"currency,omitempty" binding:"oneof=NGN"`
+	OrderReference        *string                 `json:"orderReference,omitempty"`
+	CustomerId            *string                 `json:"customerId,omitempty"`
+	AccountId             *string                 `json:"accountId,omitempty"`
+	AllowedPaymentMethods *[]PaymentMethod        `json:"allowedPaymentMethods,omitempty"`
+	OrderMetaData         *map[string]interface{} `json:"orderMetaData,omitempty"`
+}
+
 type CreateCheckoutOrderRequest struct {
-	Order struct {
-		CallbackUrl           string                  `json:"callbackUrl" binding:"required"`
-		CustomerEmail         string                  `json:"customerEmail" binding:"required"`
-		Amount                int64                   `json:"amount" binding:"required"`
-		Currency              *string                 `json:"currency,omitempty" binding:"oneof=NGN"`
-		OrderReference        *string                 `json:"orderReference,omitempty"`
-		CustomerId            *string                 `json:"customerId,omitempty"`
-		AccountId             *string                 `json:"accountId,omitempty"`
-		AllowedPaymentMethods *[]PaymentMethod        `json:"allowedPaymentMethods,omitempty"`
-		OrderMetaData         *map[string]interface{} `json:"orderMetaData,omitempty"`
-	} `json:"order"`
-	TokenizeCard *bool `json:"tokenizeCard,omitempty"`
+	Order        NombaOrder `json:"order"`
+	TokenizeCard *bool      `json:"tokenizeCard,omitempty"`
+}
+
+type ChargeCardRequest struct {
+	Order    NombaOrder `json:"order"`
+	TokenKey string     `json:"tokenKey"`
 }
 
 type TransferToAccountRequest struct {
@@ -37,16 +46,6 @@ type CreateDirectDebitManadateRequest struct {
 	StartImmediately      bool      `json:"startImmediately" binding:"required"`
 }
 
-type DebitMandateRequest struct {
-	MandateId string `json:"mandateId" binding:"required"`
-	Amount    string `json:"amount" binding:"required"`
-}
-
-type UpdateDirectDebitStatus struct {
-	MandateId string              `json:"mandateId" binding:"required"`
-	Status    UpdateMandateStatus `json:"status" binding:"required, oneof=ACTIVE DELETE SUSPEND"`
-}
-
 type NombaWebhookRequest struct {
 	EventType WebhookEventType `json:"event_type"`
 	RequestID string           `json:"requestId"`
@@ -68,6 +67,7 @@ type NombaWebhookRequest struct {
 			TransactionID         string          `json:"transactionId"`
 			AliasAccountName      string          `json:"aliasAccountName"`
 			ResponseCode          string          `json:"responseCode"`
+			ResponseCodeMessage   string          `json:"responseCodeMessage"`
 			OriginatingFrom       string          `json:"originatingFrom"`
 			TransactionAmount     float64         `json:"transactionAmount"`
 			Narration             string          `json:"narration"`
@@ -76,6 +76,7 @@ type NombaWebhookRequest struct {
 			AliasAccountType      string          `json:"aliasAccountType"`
 			MerchantTxRef         string          `json:"merchantTxRef"`
 			TokenizedCardPayment  string          `json:"tokenizedCardPayment"`
+			IsSubscriptionPayment bool            `json:"isSubscriptionPayment"`
 		} `json:"transaction"`
 		Customer struct {
 			BankCode      string `json:"bankCode"`
@@ -84,15 +85,17 @@ type NombaWebhookRequest struct {
 			AccountNumber string `json:"accountNumber"`
 		} `json:"customer"`
 		Order struct {
-			OrderReference  string  `json:"orderReference"`
-			OrderId         string  `json:"orderId"`
-			Amount          float64 `json:"amount"`
-			Currency        string  `json:"currency"`
-			PaymentMethod   string  `json:"paymentMethod"`
-			CardType        string  `json:"cardType"`
-			CardLast4Digits string  `json:"cardLast4Digits"`
-			AccountId       string  `json:"accountId"`
-			CardCurrency    string  `json:"cardCurrency"`
+			OrderReference       string  `json:"orderReference"`
+			OrderId              string  `json:"orderId"`
+			Amount               float64 `json:"amount"`
+			Currency             string  `json:"currency"`
+			PaymentMethod        string  `json:"paymentMethod"`
+			CardType             string  `json:"cardType"`
+			CardLast4Digits      string  `json:"cardLast4Digits"`
+			AccountId            string  `json:"accountId"`
+			CardCurrency         string  `json:"cardCurrency"`
+			IsSubscription       bool    `json:"isSubscription"`
+			SubscriptionPlanCode string  `json:"subscriptionPlanCode"`
 		} `json:"order"`
 		TokenizedCardData *struct {
 			TokenKey         string `json:"tokenKey"`
@@ -101,5 +104,6 @@ type NombaWebhookRequest struct {
 			TokenExpiryMonth string `json:"tokenExpiryMonth"`
 			CardPan          string `json:"cardPan"`
 		} `json:"tokenizedCardData"`
+		Subscription *models.Subscription `json:"subscription,omitempty"`
 	} `json:"data"`
 }

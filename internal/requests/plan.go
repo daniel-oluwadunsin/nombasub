@@ -21,12 +21,13 @@ type GetPlansQuery struct {
 }
 
 type UpdatePlanRequest struct {
-	Name            *string              `json:"name"`
-	Description     *string              `json:"description"`
-	Amount          *int64               `json:"amount" binding:"omitempty,gt=0"`
-	Interval        *models.PlanInterval `json:"interval" binding:"omitempty,oneof=daily weekly bi-weekly monthly quarterly yearly"`
-	IntervalCount   *int                 `json:"intervalCount" binding:"omitempty,gt=0"`
-	TrialPeriodDays *int                 `json:"trialPeriodDays" binding:"omitempty,gte=0"`
-	InvoiceLimit    *int                 `json:"invoiceLimit" binding:"omitempty,gt=0"`
-	Status          *models.PlanStatus   `json:"status" binding:"omitempty,oneof=active inactive"`
+	Name                        *string              `json:"name"`
+	Description                 *string              `json:"description"`
+	Amount                      *int64               `json:"amount" binding:"omitempty,gt=0"`
+	Interval                    *models.PlanInterval `json:"interval" binding:"omitempty,oneof=daily weekly bi-weekly monthly quarterly yearly"`
+	IntervalCount               *int                 `json:"intervalCount" binding:"omitempty,gt=0"`
+	TrialPeriodDays             *int                 `json:"trialPeriodDays" binding:"omitempty,gte=0"`
+	InvoiceLimit                *int                 `json:"invoiceLimit" binding:"omitempty,gt=0"`
+	Status                      *models.PlanStatus   `json:"status" binding:"omitempty,oneof=active inactive"`
+	UpdateExistingSubscriptions bool                 `json:"updateExistingSubscriptions"`
 }

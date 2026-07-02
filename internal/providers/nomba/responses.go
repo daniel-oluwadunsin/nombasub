@@ -1,7 +1,5 @@
 package nomba
 
-import "time"
-
 type Response[T any] struct {
 	Code        string `json:"code"`
 	Description string `json:"description"`
@@ -22,6 +20,8 @@ type CreateCheckoutOrderResponse = Response[struct {
 	OrderReference string `json:"orderReference"`
 }]
 
+type ChargeCardResponse = Response[struct{}]
+
 type CreateDirectDebitManadateResponse = Response[struct {
 	MandateID           string `json:"mandateId"`
 	MerchantReference   string `json:"merchantReference"`
@@ -36,31 +36,6 @@ type GetDirectDebitManadateResponse = Response[struct {
 	MandateStatus         MandateStatus `json:"mandateStatus"`
 	RejectionReason       string        `json:"rejectionReason"`
 	MandateAdviceStatus   string        `json:"mandateAdviceStatus"`
-}]
-
-type DebitMandateResponse = Response[struct {
-	MandateId string `json:"mandateId"`
-	Amount    string `json:"amount"`
-	Status    string `json:"status"`
-	Message   string `json:"message"`
-}]
-
-type GetMandateResponse = Response[struct {
-	Status                string    `json:"status"`
-	CustomerAccountName   string    `json:"customerAccountName"`
-	CustomerAccountNumber string    `json:"customerAccountNumber"`
-	BankCode              string    `json:"bankCode"`
-	Amount                int64     `json:"amount"`
-	CustomerName          string    `json:"customerName"`
-	CustomerAddress       string    `json:"customerAddress"`
-	CustomerPhoneNumber   string    `json:"customerPhoneNumber"`
-	CustomerEmail         string    `json:"customerEmail"`
-	MerchantReference     string    `json:"merchantReference"`
-	Frequency             Frequency `json:"frequency"`
-	StartDate             time.Time `json:"startDate"`
-	EndDate               time.Time `json:"endDate"`
-	MandateAdviceStatus   string    `json:"mandateAdviceStatus"`
-	MandateId             string    `json:"mandateId"`
 }]
 
 type TransferToAccountResponse = Response[struct {
@@ -96,27 +71,6 @@ type TransferToAccountResponse = Response[struct {
 	UserId      *string `json:"userId"`
 	TimeCreated *string `json:"timeCreated"`
 }]
-
-// success": true,
-//     "message": "PAYMENT SUCCESSFUL",
-//     "order": {
-//       "orderId": "a1b2c3d4-e5f6-47a8-xxxx-xxxxxxxxxxxx",
-//       "orderReference": "test-order-001",
-//       "amount": "4000.00",
-//       "currency": "NGN",
-//       "customerEmail": "test@example.com"
-//     },
-//     "transactionDetails": {
-//       "transactionDate": "2026-03-31T10:00:00Z",
-//       "paymentReference": "WEB-ONLINE_C-abc123-550e4c3a-...",
-//       "statusCode": "PAYMENT SUCCESSFUL",
-//       "tokenizedCardPayment": "false"
-//     },
-//     "cardDetails": {
-//       "cardPan": "543462 **** **** 2808",
-//       "cardType": "MASTERCARD",
-//       "cardCurrency": "NGN"
-//     }
 
 type VerifyCheckoutOrderResponse = Response[struct {
 	Success bool   `json:"success"`

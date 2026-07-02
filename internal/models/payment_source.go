@@ -16,12 +16,15 @@ const (
 
 type PaymentSource struct {
 	BaseModel
-	TenantID   string              `gorm:"column:tenant_id;type:uuid;not null" json:"-"`
-	CustomerID string              `gorm:"column:customer_id;type:uuid;not null" json:"customerId"`
-	Type       PaymentSourceType   `gorm:"column:type;type:text;not null" json:"type"`
-	Card       *CardPaymentSource  `gorm:"embedded;embeddedPrefix:card_" json:"card,omitempty"`
-	Bank       *BankPaymentSource  `gorm:"embedded;embeddedPrefix:bank_" json:"bank,omitempty"`
-	Status     PaymentSourceStatus `gorm:"column:status;type:text;not null;default:'active'" json:"status"`
+	TenantID           string              `gorm:"column:tenant_id;type:uuid;not null" json:"-"`
+	CustomerID         string              `gorm:"column:customer_id;type:uuid;not null" json:"customerId"`
+	Type               PaymentSourceType   `gorm:"column:type;type:text;not null" json:"type"`
+	Card               *CardPaymentSource  `gorm:"embedded;embeddedPrefix:card_" json:"card,omitempty"`
+	Bank               *BankPaymentSource  `gorm:"embedded;embeddedPrefix:bank_" json:"bank,omitempty"`
+	Status             PaymentSourceStatus `gorm:"column:status;type:text;not null;default:'active'" json:"status"`
+	ExpirationMailSent bool                `gorm:"column:expiration_mail_sent;type:boolean;not null;default:false" json:"expirationMailSent"`
+
+	Customer *Customer `gorm:"foreignKey:CustomerID;references:ID" json:"customer,omitempty"`
 }
 
 type CardPaymentSource struct {
@@ -30,6 +33,8 @@ type CardPaymentSource struct {
 	Last4Digits        *string `gorm:"column:last4_digits;type:text;" json:"last4Digits"`
 	Currency           *string `gorm:"column:currency;type:text;" json:"currency"`
 	AuthorizationToken *string `gorm:"column:authorization_token;type:text;" json:"authorizationToken"`
+	ExpiryMonth        *string `gorm:"column:expiry_month;type:text;" json:"expiryMonth"`
+	ExpiryYear         *string `gorm:"column:expiry_year;type:text;" json:"expiryYear"`
 }
 
 type MandateStatus string

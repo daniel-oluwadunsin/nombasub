@@ -24,23 +24,29 @@ const (
 	WebhookDeliveryEventTypeInvoiceMarkedUncollectible WebhookDeliveryEventType = "invoice.marked_uncollectible"
 	WebhookDeliveryEventTypeInvoiceVoided              WebhookDeliveryEventType = "invoice.voided"
 	WebhookDeliveryEventTypeInvoiceRefunded            WebhookDeliveryEventType = "invoice.refunded"
+	WebhookDeliveryEventTypeCheckoutCreated            WebhookDeliveryEventType = "checkout.created"
+	WebhookDeliveryEventTypeOrderSuccess               WebhookDeliveryEventType = "payment_success" // same as nomba incoming webhook
 
 	// subscriptions
-	WebhookDeliveryEventTypeSubscriptionCreated   WebhookDeliveryEventType = "subscription.created"
-	WebhookDeliveryEventTypeSubscriptionPastDue   WebhookDeliveryEventType = "subscription.past_due"
-	WebhookDeliveryEventTypeSubscriptionPaused    WebhookDeliveryEventType = "subscription.paused"
-	WebhookDeliveryEventTypeSubscriptionCanceled  WebhookDeliveryEventType = "subscription.canceled"
-	WebhookDeliveryEventTypeSubscriptionCompleted WebhookDeliveryEventType = "subscription.completed"
+	WebhookDeliveryEventTypeSubscriptionCreated        WebhookDeliveryEventType = "subscription.created"
+	WebhookDeliveryEventTypeSubscriptionPastDue        WebhookDeliveryEventType = "subscription.past_due"
+	WebhookDeliveryEventTypeSubscriptionPaused         WebhookDeliveryEventType = "subscription.paused"
+	WebhookDeliveryEventTypeSubscriptionCanceled       WebhookDeliveryEventType = "subscription.canceled"
+	WebhookDeliveryEventTypeSubscriptionCompleted      WebhookDeliveryEventType = "subscription.completed"
+	WebhookDeliveryEventTypeSubscriptionCardExpiring   WebhookDeliveryEventType = "subscription.card_expiring"
+	WebhookDeliveryEventTypeSubscriptionTrialEnding    WebhookDeliveryEventType = "subscription.trial_ending_soon"
+	WebhookDeliveryEventTypeSubscriptionBillingStarted WebhookDeliveryEventType = "subscription.billing_started"
 )
 
 type WebhookDelivery struct {
 	BaseModel
-	TenantID        string                `gorm:"column:tenant_id;type:uuid;not null" json:"-"`
-	EndpointURL     string                `gorm:"column:endpoint_url;type:text;not null" json:"endpointUrl"`
-	Payload         string                `gorm:"column:payload;type:text;not null" json:"payload"`
-	Status          WebhookDeliveryStatus `gorm:"column:status;type:text;not null" json:"status"`
-	AttempsCount    int                   `gorm:"column:retry_count;type:int;not null;default:0" json:"retryCount"`
-	MaxAttemptCount int                   `gorm:"column:max_attempt_count;type:int;not null;default:3" json:"maxAttemptCount"`
+	TenantID        string                   `gorm:"column:tenant_id;type:uuid;not null" json:"-"`
+	EndpointURL     string                   `gorm:"column:endpoint_url;type:text;not null" json:"endpointUrl"`
+	EventType       WebhookDeliveryEventType `gorm:"column:event_type;type:text" json:"eventType"`
+	Payload         string                   `gorm:"column:payload;type:text;not null" json:"payload"`
+	Status          WebhookDeliveryStatus    `gorm:"column:status;type:text;not null" json:"status"`
+	AttempsCount    int                      `gorm:"column:retry_count;type:int;not null;default:0" json:"retryCount"`
+	MaxAttemptCount int                      `gorm:"column:max_attempt_count;type:int;not null;default:3" json:"maxAttemptCount"`
 }
 
 func (WebhookDelivery) TableName() string {

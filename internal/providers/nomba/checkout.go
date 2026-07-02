@@ -11,6 +11,7 @@ import (
 func (c *Client) CreateCheckoutOrder(body CreateCheckoutOrderRequest) (*CreateCheckoutOrderResponse, error) {
 	res, err := c.authenticatedRequest(func() *resty.Request {
 		return c.HTTPClient.R().
+			SetHeader("accountId", c.SubAccountID).
 			SetBody(body).
 			SetResultError(&errorResponse{}).
 			SetResult(&CreateCheckoutOrderResponse{})
@@ -34,6 +35,34 @@ func (c *Client) CreateCheckoutOrder(body CreateCheckoutOrderRequest) (*CreateCh
 	if result.Data.CheckoutLink == "" || result.Data.OrderReference == "" {
 		return nil, responses.NewAppError(http.StatusBadGateway, "Nomba returned an empty checkout response")
 	}
+
+	return result, nil
+}
+
+func (c *Client) ChargeCard(body ChargeCardRequest) (*ChargeCardResponse, error) {
+	res, err := c.authenticatedRequest(func() *resty.Request {
+		return c.HTTPClient.R().
+			SetHeader("accountId", c.SubAccountID).
+			SetBody(body).
+			SetResultError(&errorResponse{}).
+			SetResult(&ChargeCardResponse{})
+	}, resty.MethodPost, "/v1/checkout/tokenized-card-payment")
+
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	if res.IsStatusFailure() {
+		err := res.ResultError().(*errorResponse)
+		return nil, &responses.AppError{
+			StatusCode: res.StatusCode(),
+			Message:    err.Description,
+			Data:       err.Data,
+			Err:        errors.New(err.Description),
+		}
+	}
+
+	result := res.Result().(*ChargeCardResponse)
 
 	return result, nil
 }

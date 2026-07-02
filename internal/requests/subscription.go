@@ -6,3 +6,9 @@ type CreateSubscriptionRequest struct {
 	CardToken           *string `json:"cardToken"`
 	MandateID           *string `json:"mandateId"`
 }
+
+type GetSubscriptionQuery struct {
+	PaginationQuery
+	Customer *string `form:"customer"`
+	Plan     *string `form:"plan"`
+}

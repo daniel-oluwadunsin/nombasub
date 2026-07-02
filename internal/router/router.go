@@ -56,6 +56,13 @@ func New(
 			transactions.POST("/order", handlers.InitializeCardTransaction) // same nomba route path for card transactions.
 		}
 
+		subscriptions := v1.Group("/subscription")
+		{
+			subscriptions.POST("/", handlers.CreateSubscription)
+			subscriptions.GET("/", handlers.GetSubscriptions)
+			subscriptions.GET("/:idOrCode", handlers.GetSubscription)
+		}
+
 	}
 
 	return r
