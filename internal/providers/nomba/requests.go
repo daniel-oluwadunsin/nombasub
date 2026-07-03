@@ -29,6 +29,7 @@ type TransferToAccountRequest struct {
 	Narration         string  `json:"narration" binding:"required"`
 	MerchantTxRef     string  `json:"merchantTxRef" binding:"required"`
 	ReceiverAccountId string  `json:"receiverAccountId" binding:"required"`
+	SenderName        string  `json:"senderName" binding:"required"`
 }
 
 type CreateDirectDebitManadateRequest struct {

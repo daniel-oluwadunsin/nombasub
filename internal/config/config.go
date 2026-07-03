@@ -21,6 +21,7 @@ type Config struct {
 	NombaAccountID     string
 	NombaSubAccountID  string
 	NombaWebhookSecret string
+	NombaSenderName    string
 	MailerUser         string
 	MailerPassword     string
 }
@@ -42,6 +43,7 @@ func Load() *Config {
 		NombaClientSecret:  requireEnv("NOMBA_CLIENT_SECRET"),
 		NombaAccountID:     requireEnv("NOMBA_ACCOUNT_ID"),
 		NombaWebhookSecret: requireEnv("NOMBA_WEBHOOK_SECRET"),
+		NombaSenderName:    getEnv("NOMBA_SENDER_NAME", "NombaSub Platform"),
 		MailerUser:         requireEnv("MAILER_USER"),
 		MailerPassword:     requireEnv("MAILER_PASSWORD"),
 	}

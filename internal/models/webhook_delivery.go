@@ -37,8 +37,12 @@ const (
 	WebhookDeliveryEventTypeSubscriptionTrialEnding    WebhookDeliveryEventType = "subscription.trial_ending_soon"
 	WebhookDeliveryEventTypeSubscriptionBillingStarted WebhookDeliveryEventType = "subscription.billing_started"
 
+	// settlements
+	WebhookDeliveryEventTypeSettlementPayoutInitiated WebhookDeliveryEventType = "settlement.payout_initiated"
+	WebhookDeliveryEventTypeSettlementPayoutFailed    WebhookDeliveryEventType = "settlement.payout_failed"
+
 	// mandates (direct debit)
-	WebhookDeliveryEventTypeMandateCreated          WebhookDeliveryEventType = "mandate.created"
+	WebhookDeliveryEventTypeMandateCreated WebhookDeliveryEventType = "mandate.created"
 	WebhookDeliveryEventTypeMandateActivated        WebhookDeliveryEventType = "mandate.activated"
 	WebhookDeliveryEventTypeMandateActivationFailed WebhookDeliveryEventType = "mandate.activation_failed"
 	WebhookDeliveryEventTypeMandateSuspended        WebhookDeliveryEventType = "mandate.suspended"

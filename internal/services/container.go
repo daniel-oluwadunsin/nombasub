@@ -1,6 +1,7 @@
 package services
 
 import (
+	"github.com/daniel-oluwadunsin/nombasub/internal/config"
 	"github.com/daniel-oluwadunsin/nombasub/internal/providers/nomba"
 	"github.com/daniel-oluwadunsin/nombasub/internal/queue"
 	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
@@ -16,9 +17,10 @@ type Container struct {
 	InvoiceService                  *InvoiceService
 	SubscriptionLifecycleService    *SubscriptionLifecycleService
 	DirectDebitSubscriptionService  *DirectDebitSubscriptionService
+	SettlementService               *SettlementService
 }
 
-func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider, publisher *queue.Publisher) *Container {
+func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider, publisher *queue.Publisher, cfg *config.Config) *Container {
 	authService := NewAuthService(rc)
 	customerService := NewCustomerService(rc)
 	planService := NewPlanService(rc)
@@ -28,6 +30,7 @@ func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider, publ
 	invoiceService := NewInvoiceService(rc, nombaProvider, publisher)
 	subscriptionLifecycleService := NewSubscriptionLifecycleService(rc, publisher)
 	directDebitSubscriptionService := NewDirectDebitSubscriptionService(rc, nombaProvider, publisher)
+	settlementService := NewSettlementService(rc, nombaProvider, publisher, cfg)
 
 	return &Container{
 		authService,
@@ -39,5 +42,6 @@ func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider, publ
 		invoiceService,
 		subscriptionLifecycleService,
 		directDebitSubscriptionService,
+		settlementService,
 	}
 }
