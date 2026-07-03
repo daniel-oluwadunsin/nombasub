@@ -5,6 +5,7 @@ type CreateSubscriptionRequest struct {
 	PlanCode            string  `json:"planCode" binding:"required"`
 	CardToken           *string `json:"cardToken"`
 	MandateID           *string `json:"mandateId"`
+	AllowRetries        bool    `json:"allowRetries"`
 }
 
 type GetSubscriptionQuery struct {

@@ -64,8 +64,9 @@ func (s *InvoiceService) CreateUpcomingInvoices() {
 func (s *InvoiceService) ProcessDueInvoices() {
 	subscriptions, err := s.rc.SubscriptionRepository.FindManyRaw(&repositories.FindArgs{
 		Filter: repositories.NewQueryFilter().Where(
-			"subscriptions.status = ? AND subscriptions.current_billing_cycle_start <= ? AND (subscriptions.trial_period_days = 0 OR subscriptions.started_at IS NOT NULL)",
+			"subscriptions.status IN (?, ?) AND subscriptions.current_billing_cycle_start <= ? AND (subscriptions.trial_period_days = 0 OR subscriptions.started_at IS NOT NULL)",
 			models.SubscriptionStatusActive,
+			models.SubscriptionStatusPastDue,
 			time.Now(),
 		),
 	})
@@ -108,7 +109,10 @@ func (s *InvoiceService) processDueSubscription(subscription *models.Subscriptio
 		enqueueInvoiceEmail(s.rc, s.publisher, models.EmailTemplateInvoiceCreated, invoice, string(models.EmailTemplateInvoiceCreated)+":"+invoice.ID)
 	}
 
-	if invoice.CheckoutLink != nil || invoice.AttemptCount > 0 {
+	if invoice.CheckoutLink != nil {
+		return nil
+	}
+	if invoice.AttemptCount > 0 && (invoice.NextPaymentAttemptAt == nil || invoice.NextPaymentAttemptAt.After(time.Now())) {
 		return nil
 	}
 
@@ -362,6 +366,26 @@ func (s *InvoiceService) chargeCard(invoice *models.Invoice, subscription *model
 }
 
 func (s *InvoiceService) failInvoice(invoice *models.Invoice, subscription *models.Subscription, reason string, eventType models.WebhookDeliveryEventType) error {
+	isTransient := eventType == models.WebhookDeliveryEventTypeInvoicePaymentFailed
+	if isTransient && subscription.AllowRetries && invoice.AttemptCount < 3 {
+		nextAttempt := time.Now().Add(24 * time.Hour)
+		invoice.NextPaymentAttemptAt = &nextAttempt
+		invoice.FailureReason = &reason
+		if _, err := s.rc.InvoiceRepository.Update(invoice, nil); err != nil {
+			return err
+		}
+
+		subscription.Status = models.SubscriptionStatusPastDue
+		subscription.LatestInvoiceID = &invoice.ID
+		if _, err := s.rc.SubscriptionRepository.Update(subscription, nil); err != nil {
+			return err
+		}
+
+		s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeInvoicePaymentFailed, invoice)
+		s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeSubscriptionPastDue, subscription)
+		return nil
+	}
+
 	now := time.Now()
 	invoice.Status = models.InvoiceStatusFailed
 	invoice.FailedAt = &now
@@ -519,6 +543,8 @@ func (s *InvoiceService) chargeDirectDebit(invoice *models.Invoice, subscription
 		Status:         models.SettlementStatusPending,
 		Reference:      reference,
 		SettlementTime: time.Now().Add(25 * time.Hour),
+		SubscriptionID: &subscription.ID,
+		InvoiceID:      &invoice.ID,
 	}, nil)
 
 	s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeMandateDebitSuccess, map[string]interface{}{

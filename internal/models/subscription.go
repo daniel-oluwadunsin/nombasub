@@ -10,6 +10,7 @@ const (
 	SubscriptionStatusExpired   SubscriptionStatus = "expired"
 	SubscriptionStatusAttention SubscriptionStatus = "attention"
 	SubscriptionStatusPaused    SubscriptionStatus = "paused"
+	SubscriptionStatusPastDue   SubscriptionStatus = "past_due"
 )
 
 type Subscription struct {
@@ -41,6 +42,7 @@ type Subscription struct {
 	LatestInvoiceID              *string            `gorm:"column:latest_invoice_id;type:uuid;" json:"latestInvoiceId"`
 	Status                       SubscriptionStatus `gorm:"column:status;type:text;not null;default:'active'" json:"status"`
 	NextBillingCyclePlanVersion  *string            `gorm:"column:next_billing_cycle_plan_version;type:uuid" json:"-"`
+	AllowRetries                 bool               `gorm:"column:allow_retries;type:boolean;not null;default:false" json:"allowRetries"`
 
 	Customer      *Customer      `gorm:"foreignKey:CustomerID" json:"customer,omitempty"`
 	Plan          *Plan          `gorm:"foreignKey:PlanID" json:"plan,omitempty"`

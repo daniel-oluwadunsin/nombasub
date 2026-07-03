@@ -116,6 +116,7 @@ func (s *SubscriptionService) CreateSubscription(tenantId string, body requests.
 		TrialPeriodDays:   latestPlan.TrialPeriodDays,
 		Currency:          latestPlan.Currency,
 		InvoiceLimit:      latestPlan.InvoiceLimit,
+		AllowRetries:      body.AllowRetries,
 	}
 
 	if latestPlan.TrialPeriodDays != 0 {
