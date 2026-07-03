@@ -88,7 +88,7 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 				tenantId := initiation.Metadata["nombaSubTenantId"].(string)
 				customerCode := initiation.Metadata["nombaSubCustomerCode"].(string)
 				planCode := initiation.Metadata["nombaSubPlanCode"].(string)
-				planVersionNumber := initiation.Metadata["nombaSubPlanVersion"].(int)
+				planVersionNumber := int(initiation.Metadata["nombaSubPlanVersion"].(float64))
 				tenantOrderReference, _ := initiation.Metadata["nombaSubTenantOrderReference"].(string)
 				invoiceId, _ := initiation.Metadata["nombaSubInvoiceId"].(string)
 				subscriptionId, _ := initiation.Metadata["nombaSubSubscriptionId"].(string)

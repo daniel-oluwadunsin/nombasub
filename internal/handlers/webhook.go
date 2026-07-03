@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -22,10 +23,14 @@ func (h *Handler) HandleWebhook(ctx *gin.Context) {
 	// read body in string format for logging for now
 	var requestBody map[string]interface{}
 	if err := ctx.ShouldBindBodyWith(&requestBody, binding.JSON); err != nil {
-		fmt.Println(requestBody)
 		responses.Error(ctx, responses.BadRequest(err.Error()))
 		return
 	}
+	jsonBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		return
+	}
+	fmt.Println(string(jsonBytes))
 
 	// receivedSignature := ctx.GetHeader("nomba-signature")
 	// timeStamp := ctx.GetHeader("nomba-timestamp")

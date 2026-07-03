@@ -3,11 +3,11 @@ package models
 type NombaInitiationPurpose string
 
 const (
-	NombaInitiationPurposeCardSubscriptionPayment  NombaInitiationPurpose = "card_subscription_payment"
-	NombaInitiationPurposeWalletToWalletTransfer   NombaInitiationPurpose = "wallet_to_wallet_transfer"
-	NombaInitiationPurposeChargeCardPayment        NombaInitiationPurpose = "charge_card_payment"
-	NombaInitiationPurposeDirectDebitSubscription  NombaInitiationPurpose = "direct_debit_subscription"
-	NombaInitiationPurposeDirectDebitCharge        NombaInitiationPurpose = "direct_debit_charge"
+	NombaInitiationPurposeCardSubscriptionPayment NombaInitiationPurpose = "card_subscription_payment"
+	NombaInitiationPurposeWalletToWalletTransfer  NombaInitiationPurpose = "wallet_to_wallet_transfer"
+	NombaInitiationPurposeChargeCardPayment       NombaInitiationPurpose = "charge_card_payment"
+	NombaInitiationPurposeDirectDebitSubscription NombaInitiationPurpose = "direct_debit_subscription"
+	NombaInitiationPurposeDirectDebitCharge       NombaInitiationPurpose = "direct_debit_charge"
 )
 
 type NombaInitiationStatus string
@@ -27,7 +27,7 @@ type NombaInitiation struct {
 	NombaOrderID *string                `json:"nomba_order_id" gorm:"column:nomba_order_id;type:varchar(100)"`
 	Purpose      NombaInitiationPurpose `json:"purpose" gorm:"column:purpose;type:varchar(50);not null"`
 	Status       NombaInitiationStatus  `json:"status" gorm:"column:status;type:varchar(20);not null"`
-	Metadata     map[string]interface{} `json:"metadata" gorm:"column:metadata;type:jsonb"`
+	Metadata     map[string]interface{} `json:"metadata" gorm:"column:metadata;type:jsonb;serializer:json"`
 }
 
 func (NombaInitiation) TableName() string {
