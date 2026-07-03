@@ -489,6 +489,12 @@ func (s *InvoiceService) chargeDirectDebit(invoice *models.Invoice, subscription
 		_, _ = s.rc.PaymentIntentRepository.Update(paymentIntent, nil)
 		initiation.Status = models.NombaInitiationStatusFailed
 		_, _ = s.rc.NombaInitiationRepository.Update(initiation, nil)
+		s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeMandateDebitFailed, map[string]interface{}{
+			"mandateId":     mandateId,
+			"invoice":       invoice,
+			"subscription":  subscription,
+			"failureReason": err.Error(),
+		})
 		return s.failInvoice(invoice, subscription, err.Error(), models.WebhookDeliveryEventTypeInvoicePaymentFailed)
 	}
 
@@ -514,6 +520,13 @@ func (s *InvoiceService) chargeDirectDebit(invoice *models.Invoice, subscription
 		Reference:      reference,
 		SettlementTime: time.Now().Add(25 * time.Hour),
 	}, nil)
+
+	s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeMandateDebitSuccess, map[string]interface{}{
+		"mandateId":    mandateId,
+		"invoice":      invoice,
+		"subscription": subscription,
+		"amount":       float64(invoice.AmountDue) / 100,
+	})
 
 	return s.markInvoicePaid(invoice, subscription)
 }

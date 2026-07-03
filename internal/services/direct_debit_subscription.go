@@ -58,7 +58,17 @@ func (s *DirectDebitSubscriptionService) processPendingMandate(initiation *model
 	if data.MandateStatus == nomba.MandateStatusDeleted {
 		initiation.Status = models.NombaInitiationStatusFailed
 		_, err = s.rc.NombaInitiationRepository.Update(initiation, nil)
-		return err
+		if err != nil {
+			return err
+		}
+		tenantId, _ := initiation.Metadata["nombaSubTenantId"].(string)
+		if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, models.WebhookDeliveryEventTypeMandateActivationFailed, map[string]interface{}{
+			"mandateId": mandateId,
+			"reason":    "mandate was deleted before activation",
+		}); err != nil {
+			log.Printf("direct debit poll: failed to enqueue mandate.activation_failed webhook: %v", err)
+		}
+		return nil
 	}
 
 	if data.MandateStatus != nomba.MandateStatusActive || data.MandateAdviceStatus != "ADVICE_SENT" {
@@ -158,8 +168,15 @@ func (s *DirectDebitSubscriptionService) processPendingMandate(initiation *model
 			return err
 		}
 
+		if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, models.WebhookDeliveryEventTypeMandateActivated, map[string]interface{}{
+			"mandateId":     mandateId,
+			"paymentSource": paymentSource,
+			"subscription":  subscription,
+		}); err != nil {
+			log.Printf("direct debit activation: failed to enqueue mandate.activated webhook: %v", err)
+		}
 		if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, models.WebhookDeliveryEventTypeSubscriptionCreated, subscription); err != nil {
-			log.Printf("direct debit activation: failed to enqueue webhook for subscription %s: %v", subscription.ID, err)
+			log.Printf("direct debit activation: failed to enqueue subscription.created webhook: %v", err)
 		}
 		enqueueSubscriptionEmail(s.rc, s.publisher, models.EmailTemplateSubscriptionCreated, subscription, string(models.EmailTemplateSubscriptionCreated)+":"+subscription.ID)
 		if subscription.TrialPeriodDays > 0 {

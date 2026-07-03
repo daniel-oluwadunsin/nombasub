@@ -22,7 +22,7 @@ func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider, publ
 	authService := NewAuthService(rc)
 	customerService := NewCustomerService(rc)
 	planService := NewPlanService(rc)
-	transactionService := NewTransactionService(rc, nombaProvider, customerService)
+	transactionService := NewTransactionService(rc, nombaProvider, customerService, publisher)
 	webhookService := NewWebhookService(rc, nombaProvider, publisher)
 	subscriptionService := NewSubscriptionService(rc, planService, customerService, publisher, nombaProvider)
 	invoiceService := NewInvoiceService(rc, nombaProvider, publisher)

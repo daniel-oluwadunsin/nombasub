@@ -36,6 +36,15 @@ const (
 	WebhookDeliveryEventTypeSubscriptionCardExpiring   WebhookDeliveryEventType = "subscription.card_expiring"
 	WebhookDeliveryEventTypeSubscriptionTrialEnding    WebhookDeliveryEventType = "subscription.trial_ending_soon"
 	WebhookDeliveryEventTypeSubscriptionBillingStarted WebhookDeliveryEventType = "subscription.billing_started"
+
+	// mandates (direct debit)
+	WebhookDeliveryEventTypeMandateCreated          WebhookDeliveryEventType = "mandate.created"
+	WebhookDeliveryEventTypeMandateActivated        WebhookDeliveryEventType = "mandate.activated"
+	WebhookDeliveryEventTypeMandateActivationFailed WebhookDeliveryEventType = "mandate.activation_failed"
+	WebhookDeliveryEventTypeMandateSuspended        WebhookDeliveryEventType = "mandate.suspended"
+	WebhookDeliveryEventTypeMandateDeleted          WebhookDeliveryEventType = "mandate.deleted"
+	WebhookDeliveryEventTypeMandateDebitSuccess     WebhookDeliveryEventType = "mandate.debit_success"
+	WebhookDeliveryEventTypeMandateDebitFailed      WebhookDeliveryEventType = "mandate.debit_failed"
 )
 
 type WebhookDelivery struct {

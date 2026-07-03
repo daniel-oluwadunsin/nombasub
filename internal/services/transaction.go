@@ -2,10 +2,12 @@ package services
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/daniel-oluwadunsin/nombasub/internal/helpers/utils"
 	"github.com/daniel-oluwadunsin/nombasub/internal/models"
 	"github.com/daniel-oluwadunsin/nombasub/internal/providers/nomba"
+	"github.com/daniel-oluwadunsin/nombasub/internal/queue"
 	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
 	"github.com/daniel-oluwadunsin/nombasub/internal/requests"
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
@@ -16,13 +18,15 @@ type TransactionService struct {
 	rc              *repositories.Container
 	nombaProvider   nomba.Provider
 	customerService *CustomerService
+	publisher       *queue.Publisher
 }
 
-func NewTransactionService(rc *repositories.Container, nombaProvider nomba.Provider, customerService *CustomerService) *TransactionService {
+func NewTransactionService(rc *repositories.Container, nombaProvider nomba.Provider, customerService *CustomerService, publisher *queue.Publisher) *TransactionService {
 	return &TransactionService{
 		rc:              rc,
 		nombaProvider:   nombaProvider,
 		customerService: customerService,
+		publisher:       publisher,
 	}
 }
 
@@ -246,6 +250,17 @@ func (ts *TransactionService) InitializeDirectDebitSubscription(tenantId string,
 			CustomerPhoneNumber: nombaResponse.Data.CustomerPhoneNumber,
 			Description:         nombaResponse.Data.Description,
 		}
+
+		if err := queue.EnqueueTenantWebhook(ts.rc, ts.publisher, tenantId, models.WebhookDeliveryEventTypeMandateCreated, map[string]interface{}{
+			"mandateId":           mandateId,
+			"merchantReference":   nombaResponse.Data.MerchantReference,
+			"customerPhoneNumber": nombaResponse.Data.CustomerPhoneNumber,
+			"planCode":            plan.Code,
+			"customerCode":        customer.Code,
+		}); err != nil {
+			log.Printf("direct debit: failed to enqueue mandate.created webhook: %v", err)
+		}
+
 		return nil
 	})
 

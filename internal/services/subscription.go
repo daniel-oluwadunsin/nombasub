@@ -280,11 +280,21 @@ func (s *SubscriptionService) UpdateDirectDebitMandateStatus(tenantId, idOrCode 
 		return responses.InternalServerError(err)
 	}
 
-	eventType := models.WebhookDeliveryEventTypeSubscriptionPaused
+	mandateEventType := models.WebhookDeliveryEventTypeMandateSuspended
+	subscriptionEventType := models.WebhookDeliveryEventTypeSubscriptionPaused
 	if body.Status == "DELETED" {
-		eventType = models.WebhookDeliveryEventTypeSubscriptionCanceled
+		mandateEventType = models.WebhookDeliveryEventTypeMandateDeleted
+		subscriptionEventType = models.WebhookDeliveryEventTypeSubscriptionCanceled
 	}
-	if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, eventType, subscription); err != nil {
+
+	mandatePayload := map[string]interface{}{
+		"mandateId":    *paymentSource.Bank.MandateID,
+		"subscription": subscription,
+	}
+	if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, mandateEventType, mandatePayload); err != nil {
+		_ = err
+	}
+	if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, subscriptionEventType, subscription); err != nil {
 		_ = err
 	}
 
