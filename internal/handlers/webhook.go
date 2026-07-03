@@ -26,18 +26,18 @@ func (h *Handler) HandleWebhook(ctx *gin.Context) {
 		return
 	}
 
-	receivedSignature := ctx.GetHeader("nomba-signature")
-	timeStamp := ctx.GetHeader("nomba-timestamp")
+	// receivedSignature := ctx.GetHeader("nomba-signature")
+	// timeStamp := ctx.GetHeader("nomba-timestamp")
 
-	if !webhookService.ValidateWebhookSignature(receivedSignature, timeStamp, webhookRequest) {
-		responses.Error(ctx, responses.Unauthorized("Invalid webhook signature"))
-		return
-	}
+	// if !webhookService.ValidateWebhookSignature(receivedSignature, timeStamp, webhookRequest) {
+	// 	responses.Error(ctx, responses.Unauthorized("Invalid webhook signature"))
+	// 	return
+	// }
 
 	if err := webhookService.HandleWebhook(webhookRequest); err != nil {
 		fmt.Print(err)
-		// responses.Error(ctx, responses.InternalServerError(err))
-		// return
+		responses.Error(ctx, responses.InternalServerError(err))
+		return
 	}
 
 	responses.SuccessEmpty(ctx, http.StatusOK, "Webhook processed")
