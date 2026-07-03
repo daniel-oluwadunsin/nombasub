@@ -135,3 +135,123 @@ func (ts *TransactionService) InitializeCardTransaction(tenantId, tenantAccountI
 
 	return nombaResponse, nil
 }
+
+type InitializeDirectDebitResponse struct {
+	MandateID           string `json:"mandateId"`
+	MerchantReference   string `json:"merchantReference"`
+	CustomerPhoneNumber string `json:"customerPhoneNumber"`
+	Description         string `json:"description"`
+}
+
+func (ts *TransactionService) InitializeDirectDebitSubscription(tenantId string, body requests.InitializeDirectDebitRequest) (*InitializeDirectDebitResponse, error) {
+	db := ts.rc.DB
+	planVersionRepository := ts.rc.PlanVersionRepository
+	nombaInitiationRepository := ts.rc.NombaInitiationRepository
+	subscriptionRepository := ts.rc.SubscriptionRepository
+	nombaProvider := ts.nombaProvider
+	customerService := ts.customerService
+
+	plan, err := planVersionRepository.Find(
+		&models.PlanVersion{TenantID: tenantId, Code: body.PlanCode},
+		&repositories.FindArgs{
+			OrderBy: []repositories.OrderBy{{Column: "index", Desc: true}},
+		},
+	)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+	if plan == nil {
+		return nil, responses.NotFound("Plan not found")
+	}
+	if plan.Status != models.PlanStatusActive {
+		return nil, responses.BadRequest("Plan is not active")
+	}
+
+	var result *InitializeDirectDebitResponse
+
+	err = db.Transaction(func(trx *gorm.DB) error {
+		customer, err := customerService.GetOrCreateCustomer(
+			tenantId,
+			models.Customer{TenantID: tenantId, Email: body.CustomerEmail},
+			trx,
+		)
+		if err != nil {
+			return err
+		}
+
+		subscriptionExists, err := subscriptionRepository.Exists(&models.Subscription{
+			TenantID:   tenantId,
+			CustomerID: customer.ID,
+			PlanID:     plan.PlanID,
+			Status:     models.SubscriptionStatusActive,
+		}, nil)
+		if err != nil {
+			return err
+		}
+		if subscriptionExists {
+			return responses.BadRequest("Customer already has an active subscription for this plan")
+		}
+
+		merchantReference, err := utils.GenerateNumericString(12)
+		if err != nil {
+			return err
+		}
+
+		metadata := map[string]interface{}{
+			"nombaSubTenantId":     tenantId,
+			"nombaSubCustomerCode": customer.Code,
+			"nombaSubPlanCode":     plan.Code,
+			"nombaSubPlanVersion":  plan.Index,
+		}
+		if body.OrderReference != nil {
+			metadata["nombaSubTenantOrderReference"] = *body.OrderReference
+		}
+
+		nombaResponse, err := nombaProvider.CreateDirectDebitManadate(nomba.CreateDirectDebitManadateRequest{
+			CustomerAccountNumber: body.CustomerAccountNumber,
+			CustomerAccountName:   body.CustomerAccountName,
+			CustomerName:          body.CustomerName,
+			CustomerAddress:       body.CustomerAddress,
+			BankCode:              body.BankCode,
+			Frequency:             body.Frequency,
+			Narration:             body.Narration,
+			CustomerPhoneNumber:   body.CustomerPhoneNumber,
+			MerchantReference:     merchantReference,
+			StartDate:             body.StartDate,
+			EndDate:               body.EndDate,
+			StartImmediately:      body.StartImmediately,
+		})
+		if err != nil {
+			return err
+		}
+
+		mandateId := nombaResponse.Data.MandateID
+
+		_, err = nombaInitiationRepository.Create(&models.NombaInitiation{
+			TenantID:     tenantId,
+			Amount:       float64(plan.Amount),
+			Currency:     plan.Currency,
+			Reference:    mandateId,
+			Purpose:      models.NombaInitiationPurposeDirectDebitSubscription,
+			Status:       models.NombaInitiationStatusPending,
+			Metadata:     metadata,
+		}, trx)
+		if err != nil {
+			return err
+		}
+
+		result = &InitializeDirectDebitResponse{
+			MandateID:           mandateId,
+			MerchantReference:   nombaResponse.Data.MerchantReference,
+			CustomerPhoneNumber: nombaResponse.Data.CustomerPhoneNumber,
+			Description:         nombaResponse.Data.Description,
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	return result, nil
+}

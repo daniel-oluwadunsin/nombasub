@@ -83,6 +83,9 @@ func main() {
 	if err := cron.RegisterInvoiceProcessingJobs(scheduler, sc.InvoiceService); err != nil {
 		log.Fatalf("failed to register invoice processing cron jobs: %v", err)
 	}
+	if err := cron.RegisterDirectDebitJobs(scheduler, sc.DirectDebitSubscriptionService); err != nil {
+		log.Fatalf("failed to register direct debit cron jobs: %v", err)
+	}
 	scheduler.Start()
 	defer scheduler.Stop()
 

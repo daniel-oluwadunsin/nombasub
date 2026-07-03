@@ -46,6 +46,16 @@ type CreateDirectDebitManadateRequest struct {
 	StartImmediately      bool      `json:"startImmediately" binding:"required"`
 }
 
+type DebitMandateRequest struct {
+	MandateId string  `json:"mandateId" binding:"required"`
+	Amount    float64 `json:"amount" binding:"required"`
+}
+
+type UpdateDirectDebitManadateRequest struct {
+	MandateId     string        `json:"mandateId" binding:"required"`
+	MandateStatus MandateStatus `json:"mandateStatus" binding:"required,oneof=ACTIVE SUSPENDED DELETED"`
+}
+
 type NombaWebhookRequest struct {
 	EventType WebhookEventType `json:"event_type"`
 	RequestID string           `json:"requestId"`

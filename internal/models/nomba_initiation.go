@@ -3,9 +3,11 @@ package models
 type NombaInitiationPurpose string
 
 const (
-	NombaInitiationPurposeCardSubscriptionPayment NombaInitiationPurpose = "card_subscription_payment"
-	NombaInitiationPurposeWalletToWalletTransfer  NombaInitiationPurpose = "wallet_to_wallet_transfer"
-	NombaInitiationPurposeChargeCardPayment       NombaInitiationPurpose = "charge_card_payment"
+	NombaInitiationPurposeCardSubscriptionPayment  NombaInitiationPurpose = "card_subscription_payment"
+	NombaInitiationPurposeWalletToWalletTransfer   NombaInitiationPurpose = "wallet_to_wallet_transfer"
+	NombaInitiationPurposeChargeCardPayment        NombaInitiationPurpose = "charge_card_payment"
+	NombaInitiationPurposeDirectDebitSubscription  NombaInitiationPurpose = "direct_debit_subscription"
+	NombaInitiationPurposeDirectDebitCharge        NombaInitiationPurpose = "direct_debit_charge"
 )
 
 type NombaInitiationStatus string

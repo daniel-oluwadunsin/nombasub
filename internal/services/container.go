@@ -7,14 +7,15 @@ import (
 )
 
 type Container struct {
-	AuthService                  *AuthService
-	CustomerService              *CustomerService
-	PlanService                  *PlanService
-	TransactionService           *TransactionService
-	WebhookService               *WebhookService
-	SubscriptionService          *SubscriptionService
-	InvoiceService               *InvoiceService
-	SubscriptionLifecycleService *SubscriptionLifecycleService
+	AuthService                     *AuthService
+	CustomerService                 *CustomerService
+	PlanService                     *PlanService
+	TransactionService              *TransactionService
+	WebhookService                  *WebhookService
+	SubscriptionService             *SubscriptionService
+	InvoiceService                  *InvoiceService
+	SubscriptionLifecycleService    *SubscriptionLifecycleService
+	DirectDebitSubscriptionService  *DirectDebitSubscriptionService
 }
 
 func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider, publisher *queue.Publisher) *Container {
@@ -23,9 +24,10 @@ func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider, publ
 	planService := NewPlanService(rc)
 	transactionService := NewTransactionService(rc, nombaProvider, customerService)
 	webhookService := NewWebhookService(rc, nombaProvider, publisher)
-	subscriptionService := NewSubscriptionService(rc, planService, customerService, publisher)
+	subscriptionService := NewSubscriptionService(rc, planService, customerService, publisher, nombaProvider)
 	invoiceService := NewInvoiceService(rc, nombaProvider, publisher)
 	subscriptionLifecycleService := NewSubscriptionLifecycleService(rc, publisher)
+	directDebitSubscriptionService := NewDirectDebitSubscriptionService(rc, nombaProvider, publisher)
 
 	return &Container{
 		authService,
@@ -36,5 +38,6 @@ func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider, publ
 		subscriptionService,
 		invoiceService,
 		subscriptionLifecycleService,
+		directDebitSubscriptionService,
 	}
 }

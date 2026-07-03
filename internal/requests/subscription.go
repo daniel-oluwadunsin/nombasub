@@ -12,3 +12,7 @@ type GetSubscriptionQuery struct {
 	Customer *string `form:"customer"`
 	Plan     *string `form:"plan"`
 }
+
+type UpdateMandateStatusRequest struct {
+	Status string `json:"status" binding:"required,oneof=ACTIVE SUSPENDED DELETED"`
+}
