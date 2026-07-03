@@ -117,7 +117,7 @@ func SendTenantWebhookHandler(rc *repositories.Container) HandlerFunc {
 			client = client.SetHeader("x-nombasub-signature", signature)
 		}
 
-		resp, err := client.Post(delivery.EndpointURL)
+		resp, err := client.SetBody(job).Post(delivery.EndpointURL)
 		statusCode := resp.StatusCode()
 		responseBody := resp.String()
 

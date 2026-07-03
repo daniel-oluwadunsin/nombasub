@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/daniel-oluwadunsin/nombasub/internal/providers/nomba"
@@ -34,8 +35,9 @@ func (h *Handler) HandleWebhook(ctx *gin.Context) {
 	}
 
 	if err := webhookService.HandleWebhook(webhookRequest); err != nil {
-		responses.Error(ctx, responses.InternalServerError(err))
-		return
+		fmt.Print(err)
+		// responses.Error(ctx, responses.InternalServerError(err))
+		// return
 	}
 
 	responses.SuccessEmpty(ctx, http.StatusOK, "Webhook processed")

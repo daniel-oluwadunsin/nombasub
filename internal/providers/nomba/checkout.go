@@ -9,9 +9,9 @@ import (
 )
 
 func (c *Client) CreateCheckoutOrder(body CreateCheckoutOrderRequest) (*CreateCheckoutOrderResponse, error) {
+	body.Order.AccountId = &c.SubAccountID
 	res, err := c.authenticatedRequest(func() *resty.Request {
 		return c.HTTPClient.R().
-			SetHeader("accountId", c.SubAccountID).
 			SetBody(body).
 			SetResultError(&errorResponse{}).
 			SetResult(&CreateCheckoutOrderResponse{})

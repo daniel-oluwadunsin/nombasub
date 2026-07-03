@@ -31,7 +31,7 @@ func (h *Handler) CreateSubscription(ctx *gin.Context) {
 func (h *Handler) GetSubscriptions(ctx *gin.Context) {
 	var query requests.GetSubscriptionQuery
 
-	if err := ctx.ShouldBindQuery(query); err != nil {
+	if err := ctx.ShouldBindQuery(&query); err != nil {
 		responses.Error(ctx, responses.BadRequest(err.Error()))
 		return
 	}

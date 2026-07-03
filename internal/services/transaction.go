@@ -89,7 +89,7 @@ func (ts *TransactionService) InitializeCardTransaction(tenantId, tenantAccountI
 			metadata["nombaSubTenantOrderReference"] = *checkoutOrder.Order.OrderReference
 		}
 		checkoutOrder.Order.OrderMetaData = &metadata
-		checkoutOrder.Order.AllowedPaymentMethods = utils.ToPtr([]nomba.PaymentMethod{nomba.PaymentMethodCard})
+		// checkoutOrder.Order.AllowedPaymentMethods = utils.ToPtr([]nomba.PaymentMethod{nomba.PaymentMethodCard})
 		checkoutOrder.Order.Amount = plan.Amount
 		checkoutOrder.Order.Currency = &plan.Currency
 		checkoutOrder.TokenizeCard = utils.ToPtr(true)

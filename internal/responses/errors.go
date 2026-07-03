@@ -58,6 +58,7 @@ func InternalServerError(err error) *AppError {
 		StatusCode: http.StatusInternalServerError,
 		Message:    "Internal Server Error",
 		Err:        err,
+		Data:       err.Error(),
 	}
 }
 

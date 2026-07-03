@@ -25,6 +25,7 @@ func New(
 	{
 		auth.POST("/register", handlers.RegisterTenant)
 		auth.POST("/login", handlers.LoginTenant)
+        auth.POST("/set-webhook-url", handlers.SetWebhookUrl)
 	}
 
 	webhook := r.Group("/webhook")
