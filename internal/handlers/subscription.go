@@ -59,3 +59,22 @@ func (h *Handler) GetSubscription(ctx *gin.Context) {
 
 	responses.Success(ctx, http.StatusOK, "Subscription retrieved successfully", data)
 }
+
+func (h *Handler) UpdateSubscriptionMandateStatus(ctx *gin.Context) {
+	var body requests.UpdateMandateStatusRequest
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		responses.Error(ctx, responses.BadRequest(err.Error()))
+		return
+	}
+
+	idOrCode := ctx.Param("idOrCode")
+	tenantId := ctx.GetString(middleware.TenantIdCtxKey)
+
+	if err := h.sc.SubscriptionService.UpdateDirectDebitMandateStatus(tenantId, idOrCode, body); err != nil {
+		responses.Error(ctx, err)
+		return
+	}
+
+	responses.SuccessEmpty(ctx, http.StatusOK, "Mandate status updated successfully")
+}

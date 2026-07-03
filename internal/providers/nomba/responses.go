@@ -72,6 +72,35 @@ type TransferToAccountResponse = Response[struct {
 	TimeCreated *string `json:"timeCreated"`
 }]
 
+type DebitMandateResponse = Response[struct {
+	MandateId string `json:"mandateId"`
+	Status    string `json:"status"`
+	Amount    float64 `json:"amount"`
+	Message   string `json:"message"`
+}]
+
+type DirectDebitStatusItem struct {
+	Status                string    `json:"status"`
+	CustomerAccountNumber string    `json:"customerAccountNumber"`
+	CustomerAccountName   string    `json:"customerAccountName"`
+	BankCode              string    `json:"bankCode"`
+	Amount                float64   `json:"amount"`
+	CustomerName          string    `json:"customerName"`
+	CustomerAddress       string    `json:"customerAddress"`
+	CustomerEmail         string    `json:"customerEmail"`
+	CustomerPhoneNumber   string    `json:"customerPhoneNumber"`
+	MerchantReference     string    `json:"merchantReference"`
+	Frequency             Frequency `json:"frequency"`
+	StartDate             []int     `json:"startDate"`
+	EndDate               []int     `json:"endDate"`
+	MandateAdviceStatus   string    `json:"mandateAdviceStatus"`
+	MandateId             string    `json:"mandateId"`
+}
+
+type UpdateDirectDebitStatusResponse = Response[struct {
+	Items []DirectDebitStatusItem `json:"items"`
+}]
+
 type VerifyCheckoutOrderResponse = Response[struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`

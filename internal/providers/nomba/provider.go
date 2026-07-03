@@ -7,4 +7,8 @@ type Provider interface {
 	DeductFee(amount float64) float64
 	CalculateFee(amount float64) float64
 	ChargeCard(ChargeCardRequest) (*ChargeCardResponse, error)
+	CreateDirectDebitManadate(CreateDirectDebitManadateRequest) (*CreateDirectDebitManadateResponse, error)
+	GetDirectDebitManadateStatus(mandateId string) (*GetDirectDebitManadateResponse, error)
+	UpdateDirectDebitStatus(UpdateDirectDebitManadateRequest) (*UpdateDirectDebitStatusResponse, error)
+	DebitMandate(DebitMandateRequest) (*DebitMandateResponse, error)
 }

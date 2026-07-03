@@ -15,5 +15,6 @@ const (
 	TableNameAuditLog               = "audit_logs"
 	TableNameNombaInitiation        = "nomba_initiations"
 	TableNameSettlement             = "settlements"
+	TableNameSettlementPayout       = "settlement_payouts"
 	TableNameEmailDelivery          = "email_deliveries"
 )

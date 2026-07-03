@@ -29,6 +29,7 @@ type TransferToAccountRequest struct {
 	Narration         string  `json:"narration" binding:"required"`
 	MerchantTxRef     string  `json:"merchantTxRef" binding:"required"`
 	ReceiverAccountId string  `json:"receiverAccountId" binding:"required"`
+	SenderName        string  `json:"senderName" binding:"required"`
 }
 
 type CreateDirectDebitManadateRequest struct {
@@ -44,6 +45,16 @@ type CreateDirectDebitManadateRequest struct {
 	StartDate             string    `json:"startDate" binding:"required"`
 	EndDate               string    `json:"endDate" binding:"required"`
 	StartImmediately      bool      `json:"startImmediately" binding:"required"`
+}
+
+type DebitMandateRequest struct {
+	MandateId string  `json:"mandateId" binding:"required"`
+	Amount    float64 `json:"amount" binding:"required"`
+}
+
+type UpdateDirectDebitManadateRequest struct {
+	MandateId     string        `json:"mandateId" binding:"required"`
+	MandateStatus MandateStatus `json:"mandateStatus" binding:"required,oneof=ACTIVE SUSPENDED DELETED"`
 }
 
 type NombaWebhookRequest struct {

@@ -43,6 +43,8 @@ func main() {
 		&models.NombaWebhookEvent{},
 		&models.NombaInitiation{},
 		&models.EmailDelivery{},
+		&models.Settlement{},
+		&models.SettlementPayout{},
 	); err != nil {
 		log.Fatalf("auto-migrate failed: %v", err)
 	}
@@ -73,7 +75,7 @@ func main() {
 	consumer.Register(queue.SendEmailQueue, queue.SendEmailHandler(rc, mailer))
 	consumer.Start()
 
-	sc := services.NewContainer(rc, nombaProvider, publisher)
+	sc := services.NewContainer(rc, nombaProvider, publisher, cfg)
 	handlers := handlers.New(sc)
 
 	scheduler := cron.NewScheduler()
@@ -82,6 +84,12 @@ func main() {
 	}
 	if err := cron.RegisterInvoiceProcessingJobs(scheduler, sc.InvoiceService); err != nil {
 		log.Fatalf("failed to register invoice processing cron jobs: %v", err)
+	}
+	if err := cron.RegisterDirectDebitJobs(scheduler, sc.DirectDebitSubscriptionService); err != nil {
+		log.Fatalf("failed to register direct debit cron jobs: %v", err)
+	}
+	if err := cron.RegisterSettlementJobs(scheduler, sc.SettlementService); err != nil {
+		log.Fatalf("failed to register settlement cron jobs: %v", err)
 	}
 	scheduler.Start()
 	defer scheduler.Stop()

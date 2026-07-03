@@ -20,6 +20,7 @@ type Container struct {
 	NombaWebhookEventRepository      *Repository[models.NombaWebhookEvent]
 	NombaInitiationRepository        *Repository[models.NombaInitiation]
 	SettlementRepository             *Repository[models.Settlement]
+	SettlementPayoutRepository       *Repository[models.SettlementPayout]
 	EmailDeliveryRepository          *Repository[models.EmailDelivery]
 }
 
@@ -39,6 +40,7 @@ func NewContainer(db *gorm.DB) *Container {
 		NombaWebhookEventRepository:      New[models.NombaWebhookEvent](db, models.TableNameNombaWebhookEvent),
 		NombaInitiationRepository:        New[models.NombaInitiation](db, models.TableNameNombaInitiation),
 		SettlementRepository:             New[models.Settlement](db, models.TableNameSettlement),
+		SettlementPayoutRepository:       New[models.SettlementPayout](db, models.TableNameSettlementPayout),
 		EmailDeliveryRepository:          New[models.EmailDelivery](db, models.TableNameEmailDelivery),
 	}
 }

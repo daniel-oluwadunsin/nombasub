@@ -54,7 +54,8 @@ func New(
 
 		transactions := v1.Group("/checkout")
 		{
-			transactions.POST("/order", handlers.InitializeCardTransaction) // same nomba route path for card transactions.
+			transactions.POST("/order", handlers.InitializeCardTransaction)
+			transactions.POST("/direct-debit", handlers.InitializeDirectDebitTransaction)
 		}
 
 		subscriptions := v1.Group("/subscription")
@@ -62,6 +63,7 @@ func New(
 			subscriptions.POST("/", handlers.CreateSubscription)
 			subscriptions.GET("/", handlers.GetSubscriptions)
 			subscriptions.GET("/:idOrCode", handlers.GetSubscription)
+			subscriptions.PUT("/:idOrCode/mandate", handlers.UpdateSubscriptionMandateStatus)
 		}
 
 	}

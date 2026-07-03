@@ -5,25 +5,30 @@ import (
 
 	"github.com/daniel-oluwadunsin/nombasub/internal/helpers/utils"
 	"github.com/daniel-oluwadunsin/nombasub/internal/models"
+	"github.com/daniel-oluwadunsin/nombasub/internal/providers/nomba"
 	"github.com/daniel-oluwadunsin/nombasub/internal/queue"
 	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
 	"github.com/daniel-oluwadunsin/nombasub/internal/requests"
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
 )
 
+
+
 type SubscriptionService struct {
 	rc              *repositories.Container
 	planService     *PlanService
 	customerService *CustomerService
 	publisher       *queue.Publisher
+	nombaProvider   nomba.Provider
 }
 
-func NewSubscriptionService(rc *repositories.Container, planService *PlanService, customerService *CustomerService, publisher *queue.Publisher) *SubscriptionService {
+func NewSubscriptionService(rc *repositories.Container, planService *PlanService, customerService *CustomerService, publisher *queue.Publisher, nombaProvider nomba.Provider) *SubscriptionService {
 	return &SubscriptionService{
 		rc:              rc,
 		planService:     planService,
 		customerService: customerService,
 		publisher:       publisher,
+		nombaProvider:   nombaProvider,
 	}
 }
 
@@ -111,6 +116,7 @@ func (s *SubscriptionService) CreateSubscription(tenantId string, body requests.
 		TrialPeriodDays:   latestPlan.TrialPeriodDays,
 		Currency:          latestPlan.Currency,
 		InvoiceLimit:      latestPlan.InvoiceLimit,
+		AllowRetries:      body.AllowRetries,
 	}
 
 	if latestPlan.TrialPeriodDays != 0 {
@@ -229,6 +235,71 @@ func (s *SubscriptionService) GetSubscriptions(tenantId string, query requests.G
 	}
 
 	return response, nil
+}
+
+func (s *SubscriptionService) UpdateDirectDebitMandateStatus(tenantId, idOrCode string, body requests.UpdateMandateStatusRequest) error {
+	subscription, err := s.GetSubscription(tenantId, idOrCode)
+	if err != nil {
+		return err
+	}
+
+	if subscription.PaymentSourceType == nil || *subscription.PaymentSourceType != models.PaymentSourceTypeBank {
+		return responses.BadRequest("subscription does not have a direct debit payment source")
+	}
+
+	paymentSource, err := s.rc.PaymentSourceRepository.FindById(*subscription.PaymentSourceID, nil)
+	if err != nil {
+		return responses.InternalServerError(err)
+	}
+	if paymentSource == nil || paymentSource.Bank == nil || paymentSource.Bank.MandateID == nil {
+		return responses.NotFound("mandate not found for this subscription")
+	}
+
+	_, err = s.nombaProvider.UpdateDirectDebitStatus(nomba.UpdateDirectDebitManadateRequest{
+		MandateId:     *paymentSource.Bank.MandateID,
+		MandateStatus: nomba.MandateStatus(body.Status),
+	})
+	if err != nil {
+		return responses.InternalServerError(err)
+	}
+
+	now := time.Now()
+	switch body.Status {
+	case "SUSPENDED":
+		subscription.Status = models.SubscriptionStatusPaused
+		subscription.PausedAt = &now
+	case "DELETED":
+		subscription.Status = models.SubscriptionStatusCanceled
+		subscription.CancelledAt = &now
+		paymentSource.Status = models.PaymentSourceStatusInactive
+		if _, err := s.rc.PaymentSourceRepository.Update(paymentSource, nil); err != nil {
+			return responses.InternalServerError(err)
+		}
+	}
+
+	if _, err := s.rc.SubscriptionRepository.Update(subscription, nil); err != nil {
+		return responses.InternalServerError(err)
+	}
+
+	mandateEventType := models.WebhookDeliveryEventTypeMandateSuspended
+	subscriptionEventType := models.WebhookDeliveryEventTypeSubscriptionPaused
+	if body.Status == "DELETED" {
+		mandateEventType = models.WebhookDeliveryEventTypeMandateDeleted
+		subscriptionEventType = models.WebhookDeliveryEventTypeSubscriptionCanceled
+	}
+
+	mandatePayload := map[string]interface{}{
+		"mandateId":    *paymentSource.Bank.MandateID,
+		"subscription": subscription,
+	}
+	if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, mandateEventType, mandatePayload); err != nil {
+		_ = err
+	}
+	if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, subscriptionEventType, subscription); err != nil {
+		_ = err
+	}
+
+	return nil
 }
 
 func (s *SubscriptionService) GetSubscription(tenantId, idOrCode string) (*models.Subscription, error) {

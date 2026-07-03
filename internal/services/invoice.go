@@ -64,8 +64,9 @@ func (s *InvoiceService) CreateUpcomingInvoices() {
 func (s *InvoiceService) ProcessDueInvoices() {
 	subscriptions, err := s.rc.SubscriptionRepository.FindManyRaw(&repositories.FindArgs{
 		Filter: repositories.NewQueryFilter().Where(
-			"subscriptions.status = ? AND subscriptions.current_billing_cycle_start <= ? AND (subscriptions.trial_period_days = 0 OR subscriptions.started_at IS NOT NULL)",
+			"subscriptions.status IN (?, ?) AND subscriptions.current_billing_cycle_start <= ? AND (subscriptions.trial_period_days = 0 OR subscriptions.started_at IS NOT NULL)",
 			models.SubscriptionStatusActive,
+			models.SubscriptionStatusPastDue,
 			time.Now(),
 		),
 	})
@@ -108,7 +109,10 @@ func (s *InvoiceService) processDueSubscription(subscription *models.Subscriptio
 		enqueueInvoiceEmail(s.rc, s.publisher, models.EmailTemplateInvoiceCreated, invoice, string(models.EmailTemplateInvoiceCreated)+":"+invoice.ID)
 	}
 
-	if invoice.CheckoutLink != nil || invoice.AttemptCount > 0 {
+	if invoice.CheckoutLink != nil {
+		return nil
+	}
+	if invoice.AttemptCount > 0 && (invoice.NextPaymentAttemptAt == nil || invoice.NextPaymentAttemptAt.After(time.Now())) {
 		return nil
 	}
 
@@ -125,10 +129,9 @@ func (s *InvoiceService) processDueSubscription(subscription *models.Subscriptio
 
 	if paymentSource.Type == models.PaymentSourceTypeCard {
 		return s.chargeCard(invoice, subscription, paymentSource)
-	} else {
 	}
 
-	return nil
+	return s.chargeDirectDebit(invoice, subscription, paymentSource)
 }
 
 func (s *InvoiceService) ensureInvoice(subscription *models.Subscription, status models.InvoiceStatus) (*models.Invoice, bool, error) {
@@ -363,6 +366,26 @@ func (s *InvoiceService) chargeCard(invoice *models.Invoice, subscription *model
 }
 
 func (s *InvoiceService) failInvoice(invoice *models.Invoice, subscription *models.Subscription, reason string, eventType models.WebhookDeliveryEventType) error {
+	isTransient := eventType == models.WebhookDeliveryEventTypeInvoicePaymentFailed
+	if isTransient && subscription.AllowRetries && invoice.AttemptCount < 3 {
+		nextAttempt := time.Now().Add(24 * time.Hour)
+		invoice.NextPaymentAttemptAt = &nextAttempt
+		invoice.FailureReason = &reason
+		if _, err := s.rc.InvoiceRepository.Update(invoice, nil); err != nil {
+			return err
+		}
+
+		subscription.Status = models.SubscriptionStatusPastDue
+		subscription.LatestInvoiceID = &invoice.ID
+		if _, err := s.rc.SubscriptionRepository.Update(subscription, nil); err != nil {
+			return err
+		}
+
+		s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeInvoicePaymentFailed, invoice)
+		s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeSubscriptionPastDue, subscription)
+		return nil
+	}
+
 	now := time.Now()
 	invoice.Status = models.InvoiceStatusFailed
 	invoice.FailedAt = &now
@@ -408,6 +431,130 @@ func (s *InvoiceService) markInvoicePaid(invoice *models.Invoice, subscription *
 	enqueueInvoiceEmail(s.rc, s.publisher, models.EmailTemplatePaymentReceipt, invoice, string(models.EmailTemplatePaymentReceipt)+":"+invoice.ID)
 	enqueueInvoiceEmail(s.rc, s.publisher, models.EmailTemplateInvoicePaid, invoice, string(models.EmailTemplateInvoicePaid)+":"+invoice.ID)
 	return nil
+}
+
+func (s *InvoiceService) chargeDirectDebit(invoice *models.Invoice, subscription *models.Subscription, paymentSource *models.PaymentSource) error {
+	if paymentSource.Bank == nil || paymentSource.Bank.MandateID == nil {
+		return s.failInvoice(invoice, subscription, "bank payment source is missing a mandate ID", models.WebhookDeliveryEventTypeInvoiceMarkedUncollectible)
+	}
+
+	mandateId := *paymentSource.Bank.MandateID
+
+	// Verify mandate is still active before attempting debit
+	statusResp, err := s.nombaProvider.GetDirectDebitManadateStatus(mandateId)
+	if err != nil {
+		return s.failInvoice(invoice, subscription, fmt.Sprintf("could not verify mandate status: %s", err.Error()), models.WebhookDeliveryEventTypeInvoicePaymentFailed)
+	}
+	if statusResp.Data.MandateStatus != nomba.MandateStatusActive {
+		return s.failInvoice(invoice, subscription, "mandate is not active", models.WebhookDeliveryEventTypeInvoiceMarkedUncollectible)
+	}
+
+	reference, err := utils.GenerateRandomString(24)
+	if err != nil {
+		return err
+	}
+	reference = fmt.Sprintf("nombasub_%s", reference)
+
+	paymentIntent := &models.PaymentIntent{
+		TenantID:          subscription.TenantID,
+		CustomerID:        subscription.CustomerID,
+		SubscriptionID:    subscription.ID,
+		InvoiceID:         &invoice.ID,
+		PlanID:            subscription.PlanID,
+		PlanVersionID:     subscription.PlanVersionID,
+		PaymentSourceID:   &paymentSource.ID,
+		PaymentSourceType: &paymentSource.Type,
+		Reference:         reference,
+		Amount:            invoice.AmountDue,
+		Currency:          invoice.Currency,
+		Status:            models.PaymentIntentStatusPendingBilling,
+		AttemptedAt:       utils.ToPtr(time.Now()),
+	}
+	paymentIntent.Code, err = utils.GenerateCode("PAY")
+	if err != nil {
+		return err
+	}
+	paymentIntent, err = s.rc.PaymentIntentRepository.Create(paymentIntent, nil)
+	if err != nil {
+		return err
+	}
+
+	initiation, err := s.rc.NombaInitiationRepository.Create(&models.NombaInitiation{
+		TenantID:  subscription.TenantID,
+		Amount:    float64(invoice.AmountDue),
+		Currency:  invoice.Currency,
+		Reference: reference,
+		Purpose:   models.NombaInitiationPurposeDirectDebitCharge,
+		Status:    models.NombaInitiationStatusPending,
+		Metadata: map[string]interface{}{
+			"nombaSubSubscriptionId": subscription.ID,
+			"nombaSubInvoiceId":      invoice.ID,
+		},
+	}, nil)
+	if err != nil {
+		return err
+	}
+
+	invoice.AttemptCount++
+	if _, err := s.rc.InvoiceRepository.Update(invoice, nil); err != nil {
+		return err
+	}
+	s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeInvoicePaymentAttempted, invoice)
+
+	debitResp, err := s.nombaProvider.DebitMandate(nomba.DebitMandateRequest{
+		MandateId: mandateId,
+		Amount:    float64(invoice.AmountDue) / 100,
+	})
+
+	if err != nil {
+		paymentIntent.Status = models.PaymentIntentStatusFailed
+		paymentIntent.FailureReason = utils.ToPtr(err.Error())
+		paymentIntent.FailedAt = utils.ToPtr(time.Now())
+		_, _ = s.rc.PaymentIntentRepository.Update(paymentIntent, nil)
+		initiation.Status = models.NombaInitiationStatusFailed
+		_, _ = s.rc.NombaInitiationRepository.Update(initiation, nil)
+		s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeMandateDebitFailed, map[string]interface{}{
+			"mandateId":     mandateId,
+			"invoice":       invoice,
+			"subscription":  subscription,
+			"failureReason": err.Error(),
+		})
+		return s.failInvoice(invoice, subscription, err.Error(), models.WebhookDeliveryEventTypeInvoicePaymentFailed)
+	}
+
+	paymentIntent.Status = models.PaymentIntentStatusSuccess
+	paymentIntent.ProviderTransactionReference = &debitResp.Data.MandateId
+	paymentIntent.CompletedAt = utils.ToPtr(time.Now())
+	if _, err := s.rc.PaymentIntentRepository.Update(paymentIntent, nil); err != nil {
+		return err
+	}
+
+	initiation.Status = models.NombaInitiationStatusCompleted
+	if _, err := s.rc.NombaInitiationRepository.Update(initiation, nil); err != nil {
+		return err
+	}
+
+	amountAfterFee := s.nombaProvider.DeductFee(float64(invoice.AmountDue) / 100)
+	_, _ = s.rc.SettlementRepository.Create(&models.Settlement{
+		TenantID:       subscription.TenantID,
+		Purpose:        models.NombaInitiationPurposeDirectDebitCharge,
+		Amount:         amountAfterFee,
+		Currency:       invoice.Currency,
+		Status:         models.SettlementStatusPending,
+		Reference:      reference,
+		SettlementTime: time.Now().Add(25 * time.Hour),
+		SubscriptionID: &subscription.ID,
+		InvoiceID:      &invoice.ID,
+	}, nil)
+
+	s.enqueueWebhook(subscription.TenantID, models.WebhookDeliveryEventTypeMandateDebitSuccess, map[string]interface{}{
+		"mandateId":    mandateId,
+		"invoice":      invoice,
+		"subscription": subscription,
+		"amount":       float64(invoice.AmountDue) / 100,
+	})
+
+	return s.markInvoicePaid(invoice, subscription)
 }
 
 func (s *InvoiceService) enqueueWebhook(tenantID string, eventType models.WebhookDeliveryEventType, data any) {

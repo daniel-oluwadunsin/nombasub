@@ -1,31 +1,36 @@
 package services
 
 import (
+	"github.com/daniel-oluwadunsin/nombasub/internal/config"
 	"github.com/daniel-oluwadunsin/nombasub/internal/providers/nomba"
 	"github.com/daniel-oluwadunsin/nombasub/internal/queue"
 	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
 )
 
 type Container struct {
-	AuthService                  *AuthService
-	CustomerService              *CustomerService
-	PlanService                  *PlanService
-	TransactionService           *TransactionService
-	WebhookService               *WebhookService
-	SubscriptionService          *SubscriptionService
-	InvoiceService               *InvoiceService
-	SubscriptionLifecycleService *SubscriptionLifecycleService
+	AuthService                     *AuthService
+	CustomerService                 *CustomerService
+	PlanService                     *PlanService
+	TransactionService              *TransactionService
+	WebhookService                  *WebhookService
+	SubscriptionService             *SubscriptionService
+	InvoiceService                  *InvoiceService
+	SubscriptionLifecycleService    *SubscriptionLifecycleService
+	DirectDebitSubscriptionService  *DirectDebitSubscriptionService
+	SettlementService               *SettlementService
 }
 
-func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider, publisher *queue.Publisher) *Container {
+func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider, publisher *queue.Publisher, cfg *config.Config) *Container {
 	authService := NewAuthService(rc)
 	customerService := NewCustomerService(rc)
 	planService := NewPlanService(rc)
-	transactionService := NewTransactionService(rc, nombaProvider, customerService)
+	transactionService := NewTransactionService(rc, nombaProvider, customerService, publisher)
 	webhookService := NewWebhookService(rc, nombaProvider, publisher)
-	subscriptionService := NewSubscriptionService(rc, planService, customerService, publisher)
+	subscriptionService := NewSubscriptionService(rc, planService, customerService, publisher, nombaProvider)
 	invoiceService := NewInvoiceService(rc, nombaProvider, publisher)
 	subscriptionLifecycleService := NewSubscriptionLifecycleService(rc, publisher)
+	directDebitSubscriptionService := NewDirectDebitSubscriptionService(rc, nombaProvider, publisher)
+	settlementService := NewSettlementService(rc, nombaProvider, publisher, cfg)
 
 	return &Container{
 		authService,
@@ -36,5 +41,7 @@ func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider, publ
 		subscriptionService,
 		invoiceService,
 		subscriptionLifecycleService,
+		directDebitSubscriptionService,
+		settlementService,
 	}
 }
