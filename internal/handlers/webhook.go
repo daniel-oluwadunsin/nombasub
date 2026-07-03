@@ -22,6 +22,7 @@ func (h *Handler) HandleWebhook(ctx *gin.Context) {
 	// read body in string format for logging for now
 	var requestBody map[string]interface{}
 	if err := ctx.ShouldBindBodyWith(&requestBody, binding.JSON); err != nil {
+		fmt.Println(requestBody)
 		responses.Error(ctx, responses.BadRequest(err.Error()))
 		return
 	}

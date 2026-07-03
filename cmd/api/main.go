@@ -43,8 +43,8 @@ func main() {
 		&models.NombaWebhookEvent{},
 		&models.NombaInitiation{},
 		&models.EmailDelivery{},
-		&models.Settlement{},
 		&models.SettlementPayout{},
+		&models.Settlement{},
 	); err != nil {
 		log.Fatalf("auto-migrate failed: %v", err)
 	}
