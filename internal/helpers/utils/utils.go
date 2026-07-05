@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/daniel-oluwadunsin/nombasub/internal/config"
 	"github.com/daniel-oluwadunsin/nombasub/internal/models"
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func GenerateNumericString(length int) (string, error) {
@@ -107,4 +110,46 @@ func HashOutgoingPayload(eventType, webhookId, tenantId, timestamp string, webho
 	hash := h.Sum(nil)
 
 	return base64.StdEncoding.EncodeToString(hash)
+}
+
+func Hash(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), 5)
+	if err != nil {
+		return "", err
+	}
+	return string(hash), nil
+}
+
+func ValidateHash(hash string, plain string) bool {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(plain)) != nil
+}
+
+func GenerateJwt(tenantId string, cfg *config.Config) (string, error) {
+	jwtSecret := cfg.JWTSecret
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"tenantId": tenantId, "timestamp": time.Now().String()})
+
+	return token.SignedString([]byte(jwtSecret))
+}
+
+func ValidateJwt(tokenString string, cfg *config.Config) (string, error) {
+	jwtSecret := cfg.JWTSecret
+
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
+
+		return []byte(jwtSecret), nil
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	claims := token.Claims.(jwt.MapClaims)
+
+	tenantId := claims["tenantId"].(string)
+
+	return tenantId, nil
 }

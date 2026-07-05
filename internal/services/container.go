@@ -8,20 +8,20 @@ import (
 )
 
 type Container struct {
-	AuthService                     *AuthService
-	CustomerService                 *CustomerService
-	PlanService                     *PlanService
-	TransactionService              *TransactionService
-	WebhookService                  *WebhookService
-	SubscriptionService             *SubscriptionService
-	InvoiceService                  *InvoiceService
-	SubscriptionLifecycleService    *SubscriptionLifecycleService
-	DirectDebitSubscriptionService  *DirectDebitSubscriptionService
-	SettlementService               *SettlementService
+	AuthService                    *AuthService
+	CustomerService                *CustomerService
+	PlanService                    *PlanService
+	TransactionService             *TransactionService
+	WebhookService                 *WebhookService
+	SubscriptionService            *SubscriptionService
+	InvoiceService                 *InvoiceService
+	SubscriptionLifecycleService   *SubscriptionLifecycleService
+	DirectDebitSubscriptionService *DirectDebitSubscriptionService
+	SettlementService              *SettlementService
 }
 
 func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider, publisher *queue.Publisher, cfg *config.Config) *Container {
-	authService := NewAuthService(rc)
+	authService := NewAuthService(rc, cfg)
 	customerService := NewCustomerService(rc)
 	planService := NewPlanService(rc)
 	transactionService := NewTransactionService(rc, nombaProvider, customerService, publisher)

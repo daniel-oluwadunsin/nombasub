@@ -16,7 +16,7 @@ func New(
 	sc *services.Container,
 ) *gin.Engine {
 	r := gin.New()
-	apiKey := middleware.APIKey(cfg, rc.TenantRepository, sc.AuthService)
+	authenticate := middleware.Authenticate(cfg, rc.TenantRepository, sc.AuthService)
 	r.Use(gin.Logger(), gin.Recovery())
 
 	r.GET("/health", handlers.Health)
@@ -26,7 +26,7 @@ func New(
 	{
 		auth.POST("/register", handlers.RegisterTenant)
 		auth.POST("/login", handlers.LoginTenant)
-		auth.POST("/set-webhook-url", apiKey, handlers.SetWebhookUrl)
+		auth.POST("/set-webhook-url", authenticate, handlers.SetWebhookUrl)
 	}
 
 	webhook := r.Group("/webhook")
@@ -36,7 +36,7 @@ func New(
 	}
 
 	v1 := r.Group("/v1")
-	v1.Use(apiKey)
+	v1.Use(authenticate)
 	{
 		customers := v1.Group("/customer")
 		{

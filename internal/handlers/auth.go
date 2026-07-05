@@ -34,13 +34,13 @@ func (h *Handler) LoginTenant(ctx *gin.Context) {
 		return
 	}
 
-	apiKey, err := h.sc.AuthService.LoginTenant(body)
+	tenant, err := h.sc.AuthService.LoginTenant(body)
 	if err != nil {
 		responses.Error(ctx, err)
 		return
 	}
 
-	responses.Success(ctx, http.StatusOK, "Tenant logged in successfully", gin.H{"apiKey": apiKey})
+	responses.Success(ctx, http.StatusOK, "Tenant logged in successfully", gin.H{"accessToken": tenant.AccessToken, "expiresAt": tenant.AccessTokenExpiresAt})
 }
 
 func (h *Handler) SetWebhookUrl(ctx *gin.Context) {

@@ -1,6 +1,9 @@
 package services
 
 import (
+	"time"
+
+	"github.com/daniel-oluwadunsin/nombasub/internal/config"
 	"github.com/daniel-oluwadunsin/nombasub/internal/helpers/utils"
 	"github.com/daniel-oluwadunsin/nombasub/internal/models"
 	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
@@ -9,11 +12,12 @@ import (
 )
 
 type AuthService struct {
-	rc *repositories.Container
+	rc  *repositories.Container
+	cfg *config.Config
 }
 
-func NewAuthService(rc *repositories.Container) *AuthService {
-	return &AuthService{rc: rc}
+func NewAuthService(rc *repositories.Container, cfg *config.Config) *AuthService {
+	return &AuthService{rc, cfg}
 }
 
 func (s *AuthService) assignNewApiKey() (string, error) {
@@ -52,10 +56,16 @@ func (s *AuthService) RegisterTenant(body requests.SignUpTenantRequest) (*string
 		return nil, responses.InternalServerError(err)
 	}
 
+	hashedPassword, err := utils.Hash(body.Password)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
 	tenant := &models.Tenant{
 		BusinessName: &body.BusinessName,
 		AccountID:    body.AccountID,
 		ApiKey:       apiKey,
+		Password:     &hashedPassword,
 	}
 
 	_, err = tenantRepository.Create(tenant, nil)
@@ -66,7 +76,7 @@ func (s *AuthService) RegisterTenant(body requests.SignUpTenantRequest) (*string
 	return &tenant.ApiKey, nil
 }
 
-func (s *AuthService) LoginTenant(body requests.LoginTenantRequest) (*string, error) {
+func (s *AuthService) LoginTenant(body requests.LoginTenantRequest) (*models.Tenant, error) {
 	tenantRepository := s.rc.TenantRepository
 
 	tenant, err := tenantRepository.Find(&models.Tenant{AccountID: body.AccountID}, nil)
@@ -78,7 +88,27 @@ func (s *AuthService) LoginTenant(body requests.LoginTenantRequest) (*string, er
 		return nil, responses.NotFound("Tenant not found")
 	}
 
-	return &tenant.ApiKey, nil
+	if tenant.Password == nil {
+		return nil, responses.Forbidden("password not set")
+	}
+
+	if !utils.ValidateHash(*tenant.Password, body.Password) {
+		return nil, responses.Unauthorized("Password incorrect")
+	}
+
+	accessToken, err := utils.GenerateJwt(tenant.ID, s.cfg)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	tenant.AccessToken = &accessToken
+	tenant.AccessTokenExpiresAt = utils.ToPtr(time.Now().Add(24 * time.Hour))
+	_, err = tenantRepository.Update(tenant, nil)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	return tenant, nil
 }
 
 func (s *AuthService) SetWebhookUrl(tenantId string, webhookUrl string) (*string, error) {
