@@ -29,7 +29,7 @@ func (h *Handler) GetCustomer(ctx *gin.Context) {
 	tenantId := ctx.GetString(middleware.TenantIdCtxKey)
 	emailOrCode := ctx.Param("emailOrCode")
 
-	customer, err := h.sc.CustomerService.GetCustomer(tenantId, emailOrCode)
+	customer, err := h.sc.CustomerService.GetCustomerDetails(tenantId, emailOrCode)
 	if err != nil {
 		responses.Error(ctx, err)
 		return
@@ -55,6 +55,19 @@ func (h *Handler) UpdateCustomer(ctx *gin.Context) {
 	}
 
 	responses.Success(ctx, 200, "Customer updated successfully", customer)
+}
+
+func (h *Handler) RemindCustomerCardExpiring(ctx *gin.Context) {
+	tenantId := ctx.GetString(middleware.TenantIdCtxKey)
+	emailOrCode := ctx.Param("emailOrCode")
+	paymentSourceID := ctx.Param("paymentSourceID")
+
+	if err := h.sc.CustomerService.RemindCustomerCardExpiring(tenantId, emailOrCode, paymentSourceID); err != nil {
+		responses.Error(ctx, err)
+		return
+	}
+
+	responses.Success(ctx, 200, "Card expiry reminder queued successfully", gin.H{"queued": true})
 }
 
 func (h *Handler) GetCustomers(ctx *gin.Context) {

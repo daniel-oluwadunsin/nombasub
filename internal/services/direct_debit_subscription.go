@@ -65,7 +65,7 @@ func (s *DirectDebitSubscriptionService) processPendingMandate(initiation *model
 		if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, models.WebhookDeliveryEventTypeMandateActivationFailed, map[string]interface{}{
 			"mandateId": mandateId,
 			"reason":    "mandate was deleted before activation",
-		}); err != nil {
+		}, nil); err != nil {
 			log.Printf("direct debit poll: failed to enqueue mandate.activation_failed webhook: %v", err)
 		}
 		return nil
@@ -111,9 +111,11 @@ func (s *DirectDebitSubscriptionService) processPendingMandate(initiation *model
 			CustomerID: customer.ID,
 			Type:       models.PaymentSourceTypeBank,
 			Bank: &models.BankPaymentSource{
-				Name:      &accountName,
-				Last4:     &last4,
-				MandateID: &mandateId,
+				Name:          &accountName,
+				Last4:         &last4,
+				MandateID:     &mandateId,
+				AccountName:   &accountName,
+				AccountNumber: &accountNumber,
 			},
 			Status: models.PaymentSourceStatusActive,
 		}, trx)
@@ -172,10 +174,10 @@ func (s *DirectDebitSubscriptionService) processPendingMandate(initiation *model
 			"mandateId":     mandateId,
 			"paymentSource": paymentSource,
 			"subscription":  subscription,
-		}); err != nil {
+		}, trx); err != nil {
 			log.Printf("direct debit activation: failed to enqueue mandate.activated webhook: %v", err)
 		}
-		if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, models.WebhookDeliveryEventTypeSubscriptionCreated, subscription); err != nil {
+		if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, models.WebhookDeliveryEventTypeSubscriptionCreated, subscription, trx); err != nil {
 			log.Printf("direct debit activation: failed to enqueue subscription.created webhook: %v", err)
 		}
 		enqueueSubscriptionEmail(s.rc, s.publisher, models.EmailTemplateSubscriptionCreated, subscription, string(models.EmailTemplateSubscriptionCreated)+":"+subscription.ID)

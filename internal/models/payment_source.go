@@ -32,7 +32,7 @@ type CardPaymentSource struct {
 	Pan                *string `gorm:"column:pan;type:text;" json:"pan"`
 	Last4Digits        *string `gorm:"column:last4_digits;type:text;" json:"last4Digits"`
 	Currency           *string `gorm:"column:currency;type:text;" json:"currency"`
-	AuthorizationToken *string `gorm:"column:authorization_token;type:text;" json:"authorizationToken"`
+	AuthorizationToken *string `gorm:"column:authorization_token;type:text;" json:"-"`
 	ExpiryMonth        *string `gorm:"column:expiry_month;type:text;" json:"expiryMonth"`
 	ExpiryYear         *string `gorm:"column:expiry_year;type:text;" json:"expiryYear"`
 }
@@ -47,8 +47,10 @@ const (
 )
 
 type BankPaymentSource struct {
-	Name      *string `gorm:"column:bank_name;type:text;" json:"bankName"`
-	Code      *string `gorm:"column:bank_code;type:text;" json:"bankCode"`
-	Last4     *string `gorm:"column:last4;type:text;" json:"last4"`
-	MandateID *string `gorm:"column:mandate_id;type:text;" json:"mandateId"`
+	Name          *string `gorm:"column:bank_name;type:text;" json:"bankName"`
+	Code          *string `gorm:"column:bank_code;type:text;" json:"bankCode"`
+	Last4         *string `gorm:"column:last4;type:text;" json:"last4"`
+	MandateID     *string `gorm:"column:mandate_id;type:text;" json:"mandateId"`
+	AccountName   *string `gorm:"column:account_name;type:text;" json:"accountName"`
+	AccountNumber *string `gorm:"column:account_number;type:text;" json:"accountNumber"`
 }

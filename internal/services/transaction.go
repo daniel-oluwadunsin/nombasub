@@ -94,7 +94,7 @@ func (ts *TransactionService) InitializeCardTransaction(tenantId, tenantAccountI
 		}
 		checkoutOrder.Order.OrderMetaData = &metadata
 		// checkoutOrder.Order.AllowedPaymentMethods = utils.ToPtr([]nomba.PaymentMethod{nomba.PaymentMethodCard})
-		checkoutOrder.Order.Amount = plan.Amount
+		checkoutOrder.Order.Amount = &plan.Amount
 		checkoutOrder.Order.Currency = &plan.Currency
 		checkoutOrder.TokenizeCard = utils.ToPtr(true)
 		checkoutOrder.Order.AccountId = utils.ToPtr(tenantAccountId)
@@ -108,7 +108,7 @@ func (ts *TransactionService) InitializeCardTransaction(tenantId, tenantAccountI
 
 		nombaInitiation, err := nombaInitiationRepository.Create(&models.NombaInitiation{
 			TenantID:  tenantId,
-			Amount:    float64(checkoutOrder.Order.Amount),
+			Amount:    float64(*checkoutOrder.Order.Amount),
 			Currency:  *checkoutOrder.Order.Currency,
 			Reference: reference,
 			Purpose:   models.NombaInitiationPurposeCardSubscriptionPayment,
@@ -140,14 +140,7 @@ func (ts *TransactionService) InitializeCardTransaction(tenantId, tenantAccountI
 	return nombaResponse, nil
 }
 
-type InitializeDirectDebitResponse struct {
-	MandateID           string `json:"mandateId"`
-	MerchantReference   string `json:"merchantReference"`
-	CustomerPhoneNumber string `json:"customerPhoneNumber"`
-	Description         string `json:"description"`
-}
-
-func (ts *TransactionService) InitializeDirectDebitSubscription(tenantId string, body requests.InitializeDirectDebitRequest) (*InitializeDirectDebitResponse, error) {
+func (ts *TransactionService) InitializeDirectDebitSubscription(tenantId string, body requests.InitializeDirectDebitRequest) (*responses.InitializeDirectDebitResponse, error) {
 	db := ts.rc.DB
 	planVersionRepository := ts.rc.PlanVersionRepository
 	nombaInitiationRepository := ts.rc.NombaInitiationRepository
@@ -171,7 +164,7 @@ func (ts *TransactionService) InitializeDirectDebitSubscription(tenantId string,
 		return nil, responses.BadRequest("Plan is not active")
 	}
 
-	var result *InitializeDirectDebitResponse
+	var result *responses.InitializeDirectDebitResponse
 
 	err = db.Transaction(func(trx *gorm.DB) error {
 		customer, err := customerService.GetOrCreateCustomer(
@@ -245,7 +238,7 @@ func (ts *TransactionService) InitializeDirectDebitSubscription(tenantId string,
 			return err
 		}
 
-		result = &InitializeDirectDebitResponse{
+		result = &responses.InitializeDirectDebitResponse{
 			MandateID:           mandateId,
 			MerchantReference:   nombaResponse.Data.MerchantReference,
 			CustomerPhoneNumber: nombaResponse.Data.CustomerPhoneNumber,
@@ -258,7 +251,7 @@ func (ts *TransactionService) InitializeDirectDebitSubscription(tenantId string,
 			"customerPhoneNumber": nombaResponse.Data.CustomerPhoneNumber,
 			"planCode":            plan.Code,
 			"customerCode":        customer.Code,
-		}); err != nil {
+		}, trx); err != nil {
 			log.Printf("direct debit: failed to enqueue mandate.created webhook: %v", err)
 		}
 

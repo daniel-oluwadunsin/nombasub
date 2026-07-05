@@ -1,6 +1,8 @@
 package services
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/daniel-oluwadunsin/nombasub/internal/helpers/utils"
@@ -93,9 +95,15 @@ func (s *PlanService) GetPlans(tenantId string, query requests.GetPlansQuery) (*
 		filter.Amount = *query.Amount
 	}
 
+	queryFilter, err := buildPlanQueryFilter(query)
+	if err != nil {
+		return nil, err
+	}
+
 	plans, err := planRepository.FindManyPaginated(
 		filter,
 		&repositories.FindArgs{
+			Filter: queryFilter,
 			OrderBy: []repositories.OrderBy{
 				{Column: "created_at", Desc: true},
 			},
@@ -158,6 +166,7 @@ func (s *PlanService) UpdatePlan(tenantId string, planCode string, body requests
 		var lastPlanVersion models.PlanVersion
 
 		if err := trx.
+			Where("tenant_id = ? AND plan_id = ?", tenantId, plan.ID).
 			Clauses(clause.Locking{Strength: "UPDATE"}).
 			Order("index DESC").
 			Limit(1).
@@ -166,16 +175,19 @@ func (s *PlanService) UpdatePlan(tenantId string, planCode string, body requests
 		}
 
 		newPlanVersion := &models.PlanVersion{
+			TenantID:        tenantId,
 			PlanID:          plan.ID,
 			Index:           lastPlanVersion.Index + 1,
 			Name:            plan.Name,
 			Description:     plan.Description,
 			Code:            plan.Code,
+			Currency:        plan.Currency,
 			Amount:          plan.Amount,
 			Interval:        plan.Interval,
 			IntervalCount:   plan.IntervalCount,
 			TrialPeriodDays: plan.TrialPeriodDays,
 			InvoiceLimit:    plan.InvoiceLimit,
+			Status:          plan.Status,
 		}
 
 		if err := trx.Create(newPlanVersion).Error; err != nil {
@@ -219,4 +231,50 @@ func (s *PlanService) GetPlanLatestVersion(tenantId string, planCode string) (*m
 	}
 
 	return planVersion, nil
+}
+
+func buildPlanQueryFilter(query requests.GetPlansQuery) (*repositories.QueryFilter, error) {
+	clauses := []string{}
+	args := []interface{}{}
+
+	if query.Search != nil && strings.TrimSpace(*query.Search) != "" {
+		search := "%" + strings.TrimSpace(*query.Search) + "%"
+		clauses = append(clauses, "(name ILIKE ? OR code ILIKE ? OR description ILIKE ?)")
+		args = append(args, search, search, search)
+	}
+
+	if query.From != nil && strings.TrimSpace(*query.From) != "" {
+		from, err := parsePlanDate(*query.From, false)
+		if err != nil {
+			return nil, responses.BadRequest("from must use YYYY-MM-DD format")
+		}
+		clauses = append(clauses, "created_at >= ?")
+		args = append(args, *from)
+	}
+
+	if query.To != nil && strings.TrimSpace(*query.To) != "" {
+		to, err := parsePlanDate(*query.To, true)
+		if err != nil {
+			return nil, responses.BadRequest("to must use YYYY-MM-DD format")
+		}
+		clauses = append(clauses, "created_at <= ?")
+		args = append(args, *to)
+	}
+
+	if len(clauses) == 0 {
+		return nil, nil
+	}
+
+	return repositories.NewQueryFilter().Where(strings.Join(clauses, " AND "), args...), nil
+}
+
+func parsePlanDate(value string, endOfDay bool) (*time.Time, error) {
+	parsed, err := time.Parse("2006-01-02", strings.TrimSpace(value))
+	if err != nil {
+		return nil, fmt.Errorf("date must use YYYY-MM-DD format")
+	}
+	if endOfDay {
+		parsed = parsed.Add(24*time.Hour - time.Nanosecond)
+	}
+	return &parsed, nil
 }

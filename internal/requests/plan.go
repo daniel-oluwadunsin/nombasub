@@ -18,6 +18,8 @@ type GetPlansQuery struct {
 	Status   *models.PlanStatus   `form:"status" binding:"omitempty,oneof=active inactive"`
 	Interval *models.PlanInterval `form:"interval" binding:"omitempty,oneof=daily weekly bi-weekly monthly quarterly yearly"`
 	Amount   *int64               `form:"amount" binding:"omitempty,gt=0"`
+	From     *string              `form:"from"`
+	To       *string              `form:"to"`
 }
 
 type UpdatePlanRequest struct {

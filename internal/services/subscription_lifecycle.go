@@ -121,7 +121,7 @@ func (s *SubscriptionLifecycleService) startBillingForEndedTrials() {
 }
 
 func (s *SubscriptionLifecycleService) enqueueWebhook(tenantID string, eventType models.WebhookDeliveryEventType, data any) {
-	if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantID, eventType, data); err != nil {
+	if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantID, eventType, data, nil); err != nil {
 		log.Printf("subscription lifecycle webhook enqueue failed for tenant %s event %s: %v", tenantID, eventType, err)
 	}
 }

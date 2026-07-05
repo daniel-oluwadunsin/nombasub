@@ -121,7 +121,7 @@ func Hash(password string) (string, error) {
 }
 
 func ValidateHash(hash string, plain string) bool {
-	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(plain)) != nil
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(plain)) == nil
 }
 
 func GenerateJwt(tenantId string, cfg *config.Config) (string, error) {

@@ -18,11 +18,13 @@ type Container struct {
 	SubscriptionLifecycleService   *SubscriptionLifecycleService
 	DirectDebitSubscriptionService *DirectDebitSubscriptionService
 	SettlementService              *SettlementService
+	DashboardAnalyticsService      *DashboardAnalyticsService
+	WebhookDeliveryService         *WebhookDeliveryService
 }
 
 func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider, publisher *queue.Publisher, cfg *config.Config) *Container {
 	authService := NewAuthService(rc, cfg)
-	customerService := NewCustomerService(rc)
+	customerService := NewCustomerService(rc, publisher)
 	planService := NewPlanService(rc)
 	transactionService := NewTransactionService(rc, nombaProvider, customerService, publisher)
 	webhookService := NewWebhookService(rc, nombaProvider, publisher)
@@ -31,6 +33,8 @@ func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider, publ
 	subscriptionLifecycleService := NewSubscriptionLifecycleService(rc, publisher)
 	directDebitSubscriptionService := NewDirectDebitSubscriptionService(rc, nombaProvider, publisher)
 	settlementService := NewSettlementService(rc, nombaProvider, publisher, cfg)
+	dashboardAnalyticsService := NewDashboardAnalyticsService(rc)
+	webhookDeliveryService := NewWebhookDeliveryService(rc, publisher)
 
 	return &Container{
 		authService,
@@ -43,5 +47,7 @@ func NewContainer(rc *repositories.Container, nombaProvider nomba.Provider, publ
 		subscriptionLifecycleService,
 		directDebitSubscriptionService,
 		settlementService,
+		dashboardAnalyticsService,
+		webhookDeliveryService,
 	}
 }

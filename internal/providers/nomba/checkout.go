@@ -11,7 +11,7 @@ import (
 
 func (c *Client) CreateCheckoutOrder(body CreateCheckoutOrderRequest) (*CreateCheckoutOrderResponse, error) {
 	body.Order.AccountId = &c.SubAccountID
-	body.Order.Amount = body.Order.Amount / 100
+	body.Order.Amount = utils.ToPtr(*body.Order.Amount / 100)
 
 	res, err := c.authenticatedRequest(func() *resty.Request {
 		return c.HTTPClient.R().
@@ -43,7 +43,7 @@ func (c *Client) CreateCheckoutOrder(body CreateCheckoutOrderRequest) (*CreateCh
 }
 
 func (c *Client) ChargeCard(body ChargeCardRequest) (*ChargeCardResponse, error) {
-	body.Order.Amount = body.Order.Amount / 100
+	body.Order.Amount = utils.ToPtr(*body.Order.Amount / 100)
 
 	res, err := c.authenticatedRequest(func() *resty.Request {
 		return c.HTTPClient.R().

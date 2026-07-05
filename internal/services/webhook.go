@@ -163,6 +163,7 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 						tenantId,
 						models.WebhookDeliveryEventTypePaymentMethodAttached,
 						card,
+						trx,
 					)
 
 					if err != nil {
@@ -221,6 +222,7 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 							tenantId,
 							models.WebhookDeliveryEventTypeSubscriptionCreated,
 							subscription,
+							trx,
 						)
 
 						if err != nil {
@@ -233,6 +235,7 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 							tenantId,
 							models.WebhookDeliveryEventTypeInvoicePaid,
 							invoice,
+							trx,
 						)
 						if err != nil {
 							log.Printf("Error occurred while enqueuing tenant webhook: %v", err)
@@ -319,6 +322,7 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 						tenantId,
 						models.WebhookDeliveryEventTypeInvoicePaid,
 						invoice,
+						trx,
 					)
 					if err != nil {
 						log.Printf("Error occurred while enqueuing tenant webhook: %v", err)
@@ -359,9 +363,6 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 					enqueueSubscriptionEmail(ws.rc, ws.publisher, models.EmailTemplateSubscriptionActivated, subscription, string(models.EmailTemplateSubscriptionActivated)+":"+subscription.ID)
 				}
 				if invoice != nil {
-					enqueueInvoiceEmail(ws.rc, ws.publisher, models.EmailTemplateInvoiceCreated, invoice, string(models.EmailTemplateInvoiceCreated)+":"+invoice.ID)
-					enqueueInvoiceEmail(ws.rc, ws.publisher, models.EmailTemplatePaymentSuccessful, invoice, string(models.EmailTemplatePaymentSuccessful)+":"+invoice.ID)
-					enqueueInvoiceEmail(ws.rc, ws.publisher, models.EmailTemplatePaymentReceipt, invoice, string(models.EmailTemplatePaymentReceipt)+":"+invoice.ID)
 					enqueueInvoiceEmail(ws.rc, ws.publisher, models.EmailTemplateInvoicePaid, invoice, string(models.EmailTemplateInvoicePaid)+":"+invoice.ID)
 				}
 
@@ -381,6 +382,7 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 				}
 
 				initiation.Status = models.NombaInitiationStatusCompleted
+				initiation.NombaTransactionId = &payload.Data.Transaction.TransactionID
 				_, err = initiationRepository.Update(initiation, trx)
 				if err != nil {
 					return err
@@ -398,6 +400,7 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 					tenantId,
 					models.WebhookDeliveryEventTypeOrderSuccess,
 					payload.Data,
+					trx,
 				)
 
 				if err != nil {
@@ -599,12 +602,12 @@ func (ws *WebhookService) handlePaymentFailed(payload nomba.NombaWebhookRequest)
 		}
 
 		if tenantId != "" && invoice != nil {
-			if err := queue.EnqueueTenantWebhook(ws.rc, ws.publisher, tenantId, models.WebhookDeliveryEventTypeInvoicePaymentFailed, invoice); err != nil {
+			if err := queue.EnqueueTenantWebhook(ws.rc, ws.publisher, tenantId, models.WebhookDeliveryEventTypeInvoicePaymentFailed, invoice, trx); err != nil {
 				log.Printf("Error occurred while enqueuing tenant webhook: %v", err)
 			}
 		}
 		if tenantId != "" && subscription != nil {
-			if err := queue.EnqueueTenantWebhook(ws.rc, ws.publisher, tenantId, models.WebhookDeliveryEventTypeSubscriptionPaused, subscription); err != nil {
+			if err := queue.EnqueueTenantWebhook(ws.rc, ws.publisher, tenantId, models.WebhookDeliveryEventTypeSubscriptionPaused, subscription, trx); err != nil {
 				log.Printf("Error occurred while enqueuing tenant webhook: %v", err)
 			}
 			enqueueSubscriptionPausedEmail(ws.rc, ws.publisher, subscription, invoice, reason)

@@ -17,7 +17,7 @@ func New(
 ) *gin.Engine {
 	r := gin.New()
 	authenticate := middleware.Authenticate(cfg, rc.TenantRepository, sc.AuthService)
-	r.Use(gin.Logger(), gin.Recovery())
+	r.Use(gin.Logger(), gin.Recovery(), middleware.CORS())
 
 	r.GET("/health", handlers.Health)
 	r.NoRoute(handlers.NoRoute)
@@ -26,6 +26,12 @@ func New(
 	{
 		auth.POST("/register", handlers.RegisterTenant)
 		auth.POST("/login", handlers.LoginTenant)
+		auth.POST("/sign-out", authenticate, handlers.SignOutTenant)
+		auth.GET("/settings", authenticate, handlers.GetTenantSettings)
+		auth.PATCH("/settings", authenticate, handlers.UpdateTenantSettings)
+		auth.POST("/api-key/rotate", authenticate, handlers.RotateTenantApiKey)
+		auth.POST("/webhook-secret/rotate", authenticate, handlers.RotateTenantWebhookSecret)
+		auth.POST("/change-password", authenticate, handlers.ChangeTenantPassword)
 		auth.POST("/set-webhook-url", authenticate, handlers.SetWebhookUrl)
 	}
 
@@ -44,6 +50,7 @@ func New(
 			customers.GET("/", handlers.GetCustomers)
 			customers.GET("/:emailOrCode", handlers.GetCustomer)
 			customers.PUT("/:emailOrCode", handlers.UpdateCustomer)
+			customers.POST("/:emailOrCode/payment-sources/:paymentSourceID/remind-card-expiry", handlers.RemindCustomerCardExpiring)
 		}
 
 		plans := v1.Group("/plan")
@@ -68,6 +75,23 @@ func New(
 			subscriptions.PUT("/:idOrCode/mandate", handlers.UpdateSubscriptionMandateStatus)
 		}
 
+		dashboard := v1.Group("/dashboard")
+		{
+			dashboard.GET("/analytics", handlers.GetDashboardAnalytics)
+		}
+
+		webhookDeliveries := v1.Group("/webhook-deliveries")
+		{
+			webhookDeliveries.GET("/", handlers.GetWebhookDeliveries)
+			webhookDeliveries.GET("/:id", handlers.GetWebhookDelivery)
+			webhookDeliveries.POST("/:id/retry", handlers.RetryWebhookDelivery)
+		}
+
+		settlementPayouts := v1.Group("/settlement-payouts")
+		{
+			settlementPayouts.GET("/", handlers.GetSettlementPayouts)
+			settlementPayouts.GET("/:id", handlers.GetSettlementPayout)
+		}
 	}
 
 	return r

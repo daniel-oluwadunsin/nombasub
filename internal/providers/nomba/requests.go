@@ -9,7 +9,7 @@ import (
 type NombaOrder struct {
 	CallbackUrl           string                  `json:"callbackUrl" binding:"required"`
 	CustomerEmail         string                  `json:"customerEmail" binding:"required"`
-	Amount                int64                   `json:"amount" binding:"required"`
+	Amount                *int64                  `json:"amount" binding:"required"`
 	Currency              *string                 `json:"currency,omitempty" binding:"oneof=NGN"`
 	OrderReference        *string                 `json:"orderReference,omitempty"`
 	CustomerId            *string                 `json:"customerId,omitempty"`

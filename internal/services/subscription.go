@@ -12,8 +12,6 @@ import (
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
 )
 
-
-
 type SubscriptionService struct {
 	rc              *repositories.Container
 	planService     *PlanService
@@ -145,12 +143,41 @@ func (s *SubscriptionService) CreateSubscription(tenantId string, body requests.
 		return nil, responses.InternalServerError(err)
 	}
 
+	invoice := &models.Invoice{
+		TenantID:        tenantId,
+		SubscriptionID:  subscription.ID,
+		CustomerID:      customer.ID,
+		Status:          models.InvoiceStatusPaid,
+		AmountDue:       latestPlan.Amount,
+		AmountPaid:      latestPlan.Amount,
+		AmountRemaining: 0,
+		Currency:        latestPlan.Currency,
+		DueAt:           subscription.CurrentBillingCycleStart,
+	}
+
+	invoice.Code, err = utils.GenerateCode("INV")
+	if err != nil {
+		return nil, err
+	}
+
+	invoice, err = s.rc.InvoiceRepository.Create(invoice, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	subscription.LatestInvoiceID = &invoice.ID
+	_, err = s.rc.SubscriptionRepository.Update(subscription, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := queue.EnqueueTenantWebhook(
 		s.rc,
 		s.publisher,
 		tenantId,
 		models.WebhookDeliveryEventTypeSubscriptionCreated,
 		subscription,
+		nil,
 	); err != nil {
 		return nil, responses.InternalServerError(err)
 	}
@@ -292,10 +319,10 @@ func (s *SubscriptionService) UpdateDirectDebitMandateStatus(tenantId, idOrCode 
 		"mandateId":    *paymentSource.Bank.MandateID,
 		"subscription": subscription,
 	}
-	if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, mandateEventType, mandatePayload); err != nil {
+	if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, mandateEventType, mandatePayload, nil); err != nil {
 		_ = err
 	}
-	if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, subscriptionEventType, subscription); err != nil {
+	if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, subscriptionEventType, subscription, nil); err != nil {
 		_ = err
 	}
 

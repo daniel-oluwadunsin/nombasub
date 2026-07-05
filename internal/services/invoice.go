@@ -238,7 +238,7 @@ func (s *InvoiceService) createCheckout(invoice *models.Invoice, subscription *m
 		Order: nomba.NombaOrder{
 			CallbackUrl:           "",
 			CustomerEmail:         customer.Email,
-			Amount:                invoice.AmountDue,
+			Amount:                &invoice.AmountDue,
 			Currency:              &invoice.Currency,
 			OrderReference:        &reference,
 			AccountId:             &tenant.AccountID,
@@ -336,7 +336,7 @@ func (s *InvoiceService) chargeCard(invoice *models.Invoice, subscription *model
 		Order: nomba.NombaOrder{
 			CallbackUrl:    "",
 			CustomerEmail:  customer.Email,
-			Amount:         invoice.AmountDue,
+			Amount:         &invoice.AmountDue,
 			Currency:       &invoice.Currency,
 			OrderReference: &reference,
 			AccountId:      &tenant.AccountID,
@@ -558,7 +558,7 @@ func (s *InvoiceService) chargeDirectDebit(invoice *models.Invoice, subscription
 }
 
 func (s *InvoiceService) enqueueWebhook(tenantID string, eventType models.WebhookDeliveryEventType, data any) {
-	if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantID, eventType, data); err != nil {
+	if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantID, eventType, data, nil); err != nil {
 		log.Printf("invoice webhook enqueue failed for tenant %s event %s: %v", tenantID, eventType, err)
 	}
 }

@@ -48,6 +48,7 @@ type SettlementPayout struct {
 	FailureReason      *string                `gorm:"column:failure_reason;type:text;" json:"failureReason"`
 	ProcessedAt        *time.Time             `gorm:"column:processed_at;type:timestamp;" json:"processedAt"`
 	SettlementCount    int                    `gorm:"column:settlement_count;type:int;not null;default:0" json:"settlementCount"`
+	RecipientAccountId *string                `gorm:"column:recipient_account_id;type:string" json:"recipientAccountId"`
 
 	Settlements []Settlement `gorm:"foreignKey:SettlementPayoutID" json:"settlements,omitempty"`
 }
