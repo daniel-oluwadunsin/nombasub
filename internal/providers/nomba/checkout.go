@@ -4,12 +4,15 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/daniel-oluwadunsin/nombasub/internal/helpers/utils"
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
 	"resty.dev/v3"
 )
 
 func (c *Client) CreateCheckoutOrder(body CreateCheckoutOrderRequest) (*CreateCheckoutOrderResponse, error) {
 	body.Order.AccountId = &c.SubAccountID
+	body.Order.Amount = body.Order.Amount / 100
+
 	res, err := c.authenticatedRequest(func() *resty.Request {
 		return c.HTTPClient.R().
 			SetBody(body).
@@ -33,13 +36,15 @@ func (c *Client) CreateCheckoutOrder(body CreateCheckoutOrderRequest) (*CreateCh
 
 	result := res.Result().(*CreateCheckoutOrderResponse)
 	if result.Data.CheckoutLink == "" || result.Data.OrderReference == "" {
-		return nil, responses.NewAppError(http.StatusBadGateway, "Nomba returned an empty checkout response")
+		return nil, responses.NewAppError(http.StatusBadGateway, utils.OrStrings(result.Description, "Nomba returned an empty checkout response"))
 	}
 
 	return result, nil
 }
 
 func (c *Client) ChargeCard(body ChargeCardRequest) (*ChargeCardResponse, error) {
+	body.Order.Amount = body.Order.Amount / 100
+
 	res, err := c.authenticatedRequest(func() *resty.Request {
 		return c.HTTPClient.R().
 			SetHeader("accountId", c.SubAccountID).

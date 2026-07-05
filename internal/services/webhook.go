@@ -80,6 +80,10 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 				return nil
 			}
 
+			if initiation.Status != models.NombaInitiationStatusPending {
+				return nil
+			}
+
 			if initiation.Purpose == models.NombaInitiationPurposeCardSubscriptionPayment {
 				tokenizedCard := payload.Data.TokenizedCardData
 				if tokenizedCard == nil {
@@ -272,7 +276,7 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 						return err
 					}
 
-					subscription, err = ws.rc.SubscriptionRepository.Create(subscription, nil)
+					subscription, err = ws.rc.SubscriptionRepository.Create(subscription, trx)
 					if err != nil {
 						return err
 					}
@@ -298,7 +302,7 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 						return err
 					}
 
-					invoice, err = ws.rc.InvoiceRepository.Create(invoice, nil)
+					invoice, err = ws.rc.InvoiceRepository.Create(invoice, trx)
 					if err != nil {
 						return err
 					}
@@ -322,17 +326,21 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 				}
 
 				paymentIntent := &models.PaymentIntent{
-					TenantID:       tenantId,
-					CustomerID:     customer.ID,
-					SubscriptionID: subscription.ID,
-					InvoiceID:      subscription.LatestInvoiceID,
-					PlanID:         subscription.PlanID,
-					PlanVersionID:  subscription.PlanVersionID,
-					Reference:      utils.OrStrings(orderReference, initiation.Reference),
-					Amount:         planVersion.Amount,
-					Currency:       planVersion.Currency,
-					Status:         models.PaymentIntentStatusSuccess,
-					AttemptedAt:    utils.ToPtr(time.Now()),
+					TenantID:                     tenantId,
+					CustomerID:                   customer.ID,
+					SubscriptionID:               subscription.ID,
+					InvoiceID:                    subscription.LatestInvoiceID,
+					PlanID:                       subscription.PlanID,
+					PlanVersionID:                subscription.PlanVersionID,
+					Reference:                    utils.OrStrings(orderReference, initiation.Reference),
+					Amount:                       planVersion.Amount,
+					Currency:                     planVersion.Currency,
+					Status:                       models.PaymentIntentStatusSuccess,
+					AttemptedAt:                  utils.ToPtr(time.Now()),
+					PaymentSourceID:              &card.ID,
+					PaymentSourceType:            &card.Type,
+					ProviderTransactionID:        &orderId,
+					ProviderTransactionReference: &orderReference,
 				}
 
 				paymentIntent.Code, err = utils.GenerateCode("PAY")
@@ -367,13 +375,13 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 					Status:         models.SettlementStatusPending,
 					Reference:      initiation.Reference,
 					SettlementTime: time.Now().Add(25 * time.Hour),
-				}, nil)
+				}, trx)
 				if err != nil {
 					return err
 				}
 
 				initiation.Status = models.NombaInitiationStatusCompleted
-				_, err = initiationRepository.Update(initiation, nil)
+				_, err = initiationRepository.Update(initiation, trx)
 				if err != nil {
 					return err
 				}
@@ -402,6 +410,9 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 		return nil
 	})
 
+	if err != nil {
+		return err
+	}
 	return err
 }
 
@@ -410,8 +421,9 @@ func (ws *WebhookService) handlePaymentFailed(payload nomba.NombaWebhookRequest)
 	reason := utils.OrStrings(payload.Data.Transaction.ResponseCodeMessage, "unable to charge payment source")
 	orderId := payload.Data.Order.OrderId
 	orderReference := utils.OrStrings(payload.Data.Order.OrderReference, payload.Data.Transaction.MerchantTxRef)
+	initiationRepository := ws.rc.NombaInitiationRepository
 
-	return db.Transaction(func(trx *gorm.DB) error {
+	err := db.Transaction(func(trx *gorm.DB) error {
 		var tenantId string
 		var invoice *models.Invoice
 		var subscription *models.Subscription
@@ -419,6 +431,25 @@ func (ws *WebhookService) handlePaymentFailed(payload nomba.NombaWebhookRequest)
 		var err error
 
 		if orderReference != "" {
+			initiation, err := initiationRepository.FindRaw(&repositories.FindArgs{
+				Filter: repositories.NewQueryFilter().Where(
+					"reference = ? OR nomba_order_id = ?", orderReference, orderId,
+				),
+				Trx: trx,
+			})
+
+			if err != nil {
+				return err
+			}
+
+			if initiation == nil {
+				return nil
+			}
+
+			if initiation.Status != models.NombaInitiationStatusPending {
+				return nil
+			}
+
 			paymentIntent, err = ws.rc.PaymentIntentRepository.Find(
 				&models.PaymentIntent{Reference: orderReference},
 				&repositories.FindArgs{Trx: trx},
@@ -581,6 +612,11 @@ func (ws *WebhookService) handlePaymentFailed(payload nomba.NombaWebhookRequest)
 
 		return nil
 	})
+
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (ws *WebhookService) handlePaymentReversal(payload nomba.NombaWebhookRequest) error {

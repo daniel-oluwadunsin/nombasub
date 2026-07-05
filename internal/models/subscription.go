@@ -17,10 +17,10 @@ type Subscription struct {
 	BaseModel
 	TenantID                     string             `gorm:"column:tenant_id;type:uuid;not null" json:"-"`
 	CustomerID                   string             `gorm:"column:customer_id;type:uuid;not null" json:"customerId"`
-	PlanID                       string             `gorm:"column:plan_id;type:uuid;not null" json:"planId"`
+	PlanID                       string             `gorm:"column:plan_id;type:uuid;not null" json:"-"`
 	Code                         string             `gorm:"column:code;type:text;not null" json:"code"`
-	PlanVersionID                string             `gorm:"column:plan_version_id;type:uuid;not null" json:"planVersionId"`
-	PaymentSourceID              *string            `gorm:"column:payment_source_id;type:uuid;" json:"paymentSourceId"`
+	PlanVersionID                string             `gorm:"column:plan_version_id;type:uuid;not null" json:"-"`
+	PaymentSourceID              *string            `gorm:"column:payment_source_id;type:uuid;" json:"-"`
 	PaymentSourceType            *PaymentSourceType `gorm:"column:payment_source_type;type:text;" json:"paymentSourceType"`
 	Interval                     PlanInterval       `gorm:"column:interval;type:text;not null" json:"interval"`
 	Amount                       int64              `gorm:"column:amount;type:bigint;not null" json:"amount"`

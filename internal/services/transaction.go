@@ -228,17 +228,18 @@ func (ts *TransactionService) InitializeDirectDebitSubscription(tenantId string,
 		if err != nil {
 			return err
 		}
+		fmt.Println(nombaResponse)
 
 		mandateId := nombaResponse.Data.MandateID
 
 		_, err = nombaInitiationRepository.Create(&models.NombaInitiation{
-			TenantID:     tenantId,
-			Amount:       float64(plan.Amount),
-			Currency:     plan.Currency,
-			Reference:    mandateId,
-			Purpose:      models.NombaInitiationPurposeDirectDebitSubscription,
-			Status:       models.NombaInitiationStatusPending,
-			Metadata:     metadata,
+			TenantID:  tenantId,
+			Amount:    float64(plan.Amount),
+			Currency:  plan.Currency,
+			Reference: mandateId,
+			Purpose:   models.NombaInitiationPurposeDirectDebitSubscription,
+			Status:    models.NombaInitiationStatusPending,
+			Metadata:  metadata,
 		}, trx)
 		if err != nil {
 			return err

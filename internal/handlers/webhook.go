@@ -48,3 +48,18 @@ func (h *Handler) HandleWebhook(ctx *gin.Context) {
 
 	responses.SuccessEmpty(ctx, http.StatusOK, "Webhook processed")
 }
+
+func (h *Handler) TenantSampleWebhook(ctx *gin.Context) {
+	var requestBody map[string]interface{}
+	if err := ctx.ShouldBindBodyWith(&requestBody, binding.JSON); err != nil {
+		responses.Error(ctx, responses.BadRequest(err.Error()))
+		return
+	}
+	jsonBytes, err := json.Marshal(requestBody)
+	if err != nil {
+		return
+	}
+	fmt.Println(string(jsonBytes))
+
+	responses.SuccessEmpty(ctx, http.StatusOK, "Webhook processed")
+}

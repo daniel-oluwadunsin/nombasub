@@ -72,7 +72,11 @@ func EnqueueTenantWebhook(
 		return err
 	}
 
-	return publisher.Publish(SendTenantWebhookQueue, SendTenantWebhookJob{WebhookDeliveryID: delivery.ID})
+	if err := publisher.Publish(SendTenantWebhookQueue, SendTenantWebhookJob{WebhookDeliveryID: delivery.ID}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func SendTenantWebhookHandler(rc *repositories.Container) HandlerFunc {
@@ -118,11 +122,15 @@ func SendTenantWebhookHandler(rc *repositories.Container) HandlerFunc {
 		}
 
 		resp, err := client.SetBody(job).Post(delivery.EndpointURL)
-		statusCode := resp.StatusCode()
-		responseBody := resp.String()
+		statusCode := 0
+		responseBody := ""
+		if resp != nil {
+			statusCode = resp.StatusCode()
+			responseBody = resp.String()
+		}
 
 		delivery.AttempsCount++
-		if err == nil && resp.IsStatusSuccess() {
+		if err == nil && resp != nil && resp.IsStatusSuccess() {
 			delivery.Status = models.WebhookDeliveryStatusDelivered
 		} else if delivery.AttempsCount >= delivery.MaxAttemptCount {
 			delivery.Status = models.WebhookDeliveryStatusFailed
@@ -146,7 +154,7 @@ func SendTenantWebhookHandler(rc *repositories.Container) HandlerFunc {
 			}
 			return err
 		}
-		if resp.IsStatusFailure() {
+		if resp != nil && resp.IsStatusFailure() {
 			if delivery.Status == models.WebhookDeliveryStatusFailed {
 				return nil
 			}

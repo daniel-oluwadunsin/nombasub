@@ -1,6 +1,10 @@
 package nomba
 
-import "github.com/daniel-oluwadunsin/nombasub/internal/models"
+import (
+	"time"
+
+	"github.com/daniel-oluwadunsin/nombasub/internal/models"
+)
 
 type NombaOrder struct {
 	CallbackUrl           string                  `json:"callbackUrl" binding:"required"`
@@ -42,8 +46,8 @@ type CreateDirectDebitManadateRequest struct {
 	Narration             string    `json:"narration" binding:"required"`
 	CustomerPhoneNumber   string    `json:"customerPhoneNumber" binding:"required"`
 	MerchantReference     string    `json:"merchantReference" binding:"required"`
-	StartDate             string    `json:"startDate" binding:"required"`
-	EndDate               string    `json:"endDate" binding:"required"`
+	StartDate             time.Time `json:"startDate" binding:"required"`
+	EndDate               time.Time `json:"endDate" binding:"required"`
 	StartImmediately      bool      `json:"startImmediately" binding:"required"`
 }
 
