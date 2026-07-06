@@ -343,6 +343,10 @@ func (ts *TransactionService) RefundPaymentOrInvoice(tenantId string, body reque
 	var invoice *models.Invoice
 	var settlement *models.Settlement
 	var err error
+	if (body.PaymentIntentId == nil || *body.PaymentIntentId == "") && (body.InvoiceId == nil || *body.InvoiceId == "") {
+		return responses.BadRequest("paymentIntentId or invoiceId is required")
+	}
+
 	if body.PaymentIntentId != nil && *body.PaymentIntentId != "" {
 		paymentIntent, err = paymentIntentRepository.Find(&models.PaymentIntent{
 			TenantID: tenantId,
@@ -357,7 +361,9 @@ func (ts *TransactionService) RefundPaymentOrInvoice(tenantId string, body reque
 			return responses.NotFound("Payment intent not found")
 		}
 
-		body.InvoiceId = paymentIntent.InvoiceID
+		if paymentIntent.InvoiceID != nil {
+			body.InvoiceId = paymentIntent.InvoiceID
+		}
 	}
 
 	if body.InvoiceId != nil && *body.InvoiceId != "" {
@@ -387,6 +393,13 @@ func (ts *TransactionService) RefundPaymentOrInvoice(tenantId string, body reque
 				return responses.NotFound("Payment intent not found")
 			}
 		}
+	}
+
+	if invoice == nil {
+		return responses.NotFound("Invoice not found")
+	}
+	if !CanRefundInvoice(invoice) {
+		return responses.BadRequest("invoice can only be refunded within 12 hours of payment")
 	}
 
 	if paymentIntent.Status != models.PaymentIntentStatusSuccess {

@@ -60,6 +60,37 @@ func (h *Handler) GetSubscription(ctx *gin.Context) {
 	responses.Success(ctx, http.StatusOK, "Subscription retrieved successfully", data)
 }
 
+func (h *Handler) GenerateSubscriptionCheckoutLink(ctx *gin.Context) {
+	var body requests.GenerateSubscriptionCheckoutLinkRequest
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		responses.Error(ctx, responses.BadRequest(err.Error()))
+		return
+	}
+
+	idOrCode := ctx.Param("idOrCode")
+	tenantId := ctx.GetString(middleware.TenantIdCtxKey)
+
+	data, err := h.sc.SubscriptionService.GenerateCheckoutLink(tenantId, idOrCode, body.SendEmail)
+	if err != nil {
+		responses.Error(ctx, err)
+		return
+	}
+
+	responses.Success(ctx, http.StatusOK, "Checkout link generated successfully", data)
+}
+
+func (h *Handler) CancelSubscription(ctx *gin.Context) {
+	idOrCode := ctx.Param("idOrCode")
+	tenantId := ctx.GetString(middleware.TenantIdCtxKey)
+
+	if err := h.sc.SubscriptionService.CancelSubscription(tenantId, idOrCode); err != nil {
+		responses.Error(ctx, err)
+		return
+	}
+
+	responses.SuccessEmpty(ctx, http.StatusOK, "Subscription canceled successfully")
+}
+
 func (h *Handler) UpdateSubscriptionMandateStatus(ctx *gin.Context) {
 	var body requests.UpdateMandateStatusRequest
 

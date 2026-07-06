@@ -33,6 +33,9 @@ type Invoice struct {
 	AttemptCount         int           `gorm:"column:attempt_count;type:int;not null;default:0" json:"attemptCount"`
 	FailureReason        *string       `gorm:"column:failure_reason;type:text;" json:"failureReason"`
 	CheckoutLink         *string       `gorm:"column:checkout_link;type:text;" json:"checkoutLink"`
+
+	Subscription *Subscription `gorm:"foreignKey:SubscriptionID;references:ID" json:"subscription,omitempty"`
+	Customer     *Customer     `gorm:"foreignKey:CustomerID;references:ID" json:"customer,omitempty"`
 }
 
 func (Invoice) TableName() string {

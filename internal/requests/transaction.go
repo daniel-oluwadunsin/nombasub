@@ -29,8 +29,8 @@ type InitializeDirectDebitRequest struct {
 }
 
 type RefundPaymentOrInvoiceRequest struct {
-	PaymentIntentId *string `json:"paymentIntentId" binding:"required"`
-	InvoiceId       *string `json:"invoiceId" binding:"required"`
+	PaymentIntentId *string `json:"paymentIntentId"`
+	InvoiceId       *string `json:"invoiceId"`
 	Reason          *string `json:"reason" binding:"required"`
 }
 

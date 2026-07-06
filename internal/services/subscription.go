@@ -10,21 +10,25 @@ import (
 	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
 	"github.com/daniel-oluwadunsin/nombasub/internal/requests"
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type SubscriptionService struct {
 	rc              *repositories.Container
 	planService     *PlanService
 	customerService *CustomerService
+	invoiceService  *InvoiceService
 	publisher       *queue.Publisher
 	nombaProvider   nomba.Provider
 }
 
-func NewSubscriptionService(rc *repositories.Container, planService *PlanService, customerService *CustomerService, publisher *queue.Publisher, nombaProvider nomba.Provider) *SubscriptionService {
+func NewSubscriptionService(rc *repositories.Container, planService *PlanService, customerService *CustomerService, invoiceService *InvoiceService, publisher *queue.Publisher, nombaProvider nomba.Provider) *SubscriptionService {
 	return &SubscriptionService{
 		rc:              rc,
 		planService:     planService,
 		customerService: customerService,
+		invoiceService:  invoiceService,
 		publisher:       publisher,
 		nombaProvider:   nombaProvider,
 	}
@@ -147,10 +151,10 @@ func (s *SubscriptionService) CreateSubscription(tenantId string, body requests.
 		TenantID:        tenantId,
 		SubscriptionID:  subscription.ID,
 		CustomerID:      customer.ID,
-		Status:          models.InvoiceStatusPaid,
+		Status:          models.InvoiceStatusOpen,
 		AmountDue:       latestPlan.Amount,
-		AmountPaid:      latestPlan.Amount,
-		AmountRemaining: 0,
+		AmountPaid:      0,
+		AmountRemaining: latestPlan.Amount,
 		Currency:        latestPlan.Currency,
 		DueAt:           subscription.CurrentBillingCycleStart,
 	}
@@ -202,7 +206,7 @@ func (s *SubscriptionService) CreateSubscription(tenantId string, body requests.
 	return subscription, nil
 }
 
-func (s *SubscriptionService) GetSubscriptions(tenantId string, query requests.GetSubscriptionQuery) (*responses.PaginatedResponse[models.Subscription], error) {
+func (s *SubscriptionService) GetSubscriptions(tenantId string, query requests.GetSubscriptionQuery) (*responses.PaginatedResponse[responses.SubscriptionResponse], error) {
 	subscriptionRepository := s.rc.SubscriptionRepository
 	planRepository := s.rc.PlanRepository
 	customerRepository := s.rc.CustomerRepository
@@ -226,20 +230,30 @@ func (s *SubscriptionService) GetSubscriptions(tenantId string, query requests.G
 	}
 
 	if query.Customer != nil {
+		customerSearch := "%" + *query.Customer + "%"
 		customer, err = customerRepository.FindRaw(&repositories.FindArgs{
-			Filter: repositories.NewQueryFilter().Where("tenant_id = ? AND (code = ? OR id = ? OR external_ref = ? or email ILIKE ?)",
+			Filter: repositories.NewQueryFilter().Where("tenant_id = ? AND (code = ? OR id = ? OR external_ref = ? or email ILIKE ? OR name ILIKE ?)",
 				tenantId,
 				*query.Customer,
 				*query.Customer,
 				*query.Customer,
-				*query.Customer,
+				customerSearch,
+				customerSearch,
 			),
 		})
 		if err != nil {
 			return nil, responses.InternalServerError(err)
 		}
 		if customer == nil {
-			return nil, responses.NotFound("Customer does not exist")
+			page := 1
+			limit := 10
+			if query.Page != nil {
+				page = *query.Page
+			}
+			if query.Limit != nil {
+				limit = *query.Limit
+			}
+			return responses.NewPaginatedResponse(page, limit, 0, []responses.SubscriptionResponse{}), nil
 		}
 		filter.CustomerID = customer.ID
 	}
@@ -251,6 +265,7 @@ func (s *SubscriptionService) GetSubscriptions(tenantId string, query requests.G
 				{Association: "Customer"},
 				{Association: "Plan"},
 				{Association: "PaymentSource"},
+				{Association: "LatestInvoice"},
 			},
 			OrderBy: []repositories.OrderBy{{Column: "created_at", Desc: true}},
 		},
@@ -261,11 +276,94 @@ func (s *SubscriptionService) GetSubscriptions(tenantId string, query requests.G
 		return nil, responses.InternalServerError(err)
 	}
 
-	return response, nil
+	data, err := s.formatSubscriptions(response.Data)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	return &responses.PaginatedResponse[responses.SubscriptionResponse]{
+		Data:            data,
+		TotalCount:      response.TotalCount,
+		Page:            response.Page,
+		Limit:           response.Limit,
+		TotalPages:      response.TotalPages,
+		HasNextPage:     response.HasNextPage,
+		HasPreviousPage: response.HasPreviousPage,
+	}, nil
+}
+
+func (s *SubscriptionService) GenerateCheckoutLink(tenantId, idOrCode string, sendEmail bool) (*responses.GenerateCheckoutLinkResponse, error) {
+	subscription, err := s.GetSubscriptionModel(tenantId, idOrCode)
+	if err != nil {
+		return nil, err
+	}
+	if !canGenerateCheckoutLink(subscription) {
+		return nil, responses.BadRequest("checkout link cannot be generated for this subscription")
+	}
+
+	invoice, err := s.checkoutInvoice(subscription)
+	if err != nil {
+		return nil, err
+	}
+
+	link, err := s.invoiceService.CreateCheckoutForSubscription(invoice, subscription, sendEmail)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	subscription.LatestInvoiceID = &invoice.ID
+	if _, err := s.rc.SubscriptionRepository.Update(subscription, nil); err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	return &responses.GenerateCheckoutLinkResponse{CheckoutLink: link}, nil
+}
+
+func (s *SubscriptionService) CancelSubscription(tenantId, idOrCode string) error {
+	subscription, err := s.GetSubscriptionModel(tenantId, idOrCode)
+	if err != nil {
+		return err
+	}
+	if subscription.Status == models.SubscriptionStatusCanceled {
+		return responses.BadRequest("subscription is already canceled")
+	}
+
+	now := time.Now()
+	return s.rc.DB.Transaction(func(trx *gorm.DB) error {
+		subscription.Status = models.SubscriptionStatusCanceled
+		subscription.CancelledAt = &now
+		if _, err := s.rc.SubscriptionRepository.Update(subscription, trx); err != nil {
+			return responses.InternalServerError(err)
+		}
+
+		if err := trx.Model(&models.Invoice{}).
+			Where("tenant_id = ? AND subscription_id = ? AND status IN ?", tenantId, subscription.ID, []models.InvoiceStatus{models.InvoiceStatusDraft, models.InvoiceStatusOpen}).
+			Updates(map[string]interface{}{
+				"status":         models.InvoiceStatusFailed,
+				"failed_at":      now,
+				"failure_reason": "subscription canceled",
+			}).Error; err != nil {
+			return responses.InternalServerError(err)
+		}
+
+		if err := queue.EnqueueTenantWebhook(s.rc, s.publisher, tenantId, models.WebhookDeliveryEventTypeSubscriptionCanceled, subscription, trx); err != nil {
+			return responses.InternalServerError(err)
+		}
+
+		enqueueSubscriptionEmail(
+			s.rc,
+			s.publisher,
+			models.EmailTemplateSubscriptionCanceled,
+			subscription,
+			string(models.EmailTemplateSubscriptionCanceled)+":"+subscription.ID,
+		)
+
+		return nil
+	})
 }
 
 func (s *SubscriptionService) UpdateDirectDebitMandateStatus(tenantId, idOrCode string, body requests.UpdateMandateStatusRequest) error {
-	subscription, err := s.GetSubscription(tenantId, idOrCode)
+	subscription, err := s.GetSubscriptionModel(tenantId, idOrCode)
 	if err != nil {
 		return err
 	}
@@ -329,16 +427,42 @@ func (s *SubscriptionService) UpdateDirectDebitMandateStatus(tenantId, idOrCode 
 	return nil
 }
 
-func (s *SubscriptionService) GetSubscription(tenantId, idOrCode string) (*models.Subscription, error) {
+func (s *SubscriptionService) GetSubscription(tenantId, idOrCode string) (*responses.SubscriptionResponse, error) {
+	subscription, err := s.GetSubscriptionModel(tenantId, idOrCode)
+	if err != nil {
+		return nil, err
+	}
+
+	formatted, err := s.formatSubscriptions([]models.Subscription{*subscription})
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+	if len(formatted) == 0 {
+		return nil, responses.NotFound("Subscription not found")
+	}
+
+	return &formatted[0], nil
+}
+
+func (s *SubscriptionService) GetSubscriptionModel(tenantId, idOrCode string) (*models.Subscription, error) {
 	subscriptionRepository := s.rc.SubscriptionRepository
+
+	var filter *repositories.QueryFilter
+
+	if uuid.Validate(idOrCode) == nil {
+		filter = repositories.NewQueryFilter().Where("tenant_id = ? AND id = ?", tenantId, idOrCode)
+	} else {
+		filter = repositories.NewQueryFilter().Where("tenant_id = ? AND code = ?", tenantId, idOrCode)
+	}
 
 	subscription, err := subscriptionRepository.FindRaw(
 		&repositories.FindArgs{
-			Filter: repositories.NewQueryFilter().Where("tenant_id = ? AND (id = ? or code = ?)", tenantId, idOrCode, idOrCode),
+			Filter: filter,
 			Preloads: []repositories.Preload{
 				{Association: "Customer"},
 				{Association: "Plan"},
 				{Association: "PaymentSource"},
+				{Association: "LatestInvoice"},
 			},
 		},
 	)
@@ -352,4 +476,201 @@ func (s *SubscriptionService) GetSubscription(tenantId, idOrCode string) (*model
 	}
 
 	return subscription, nil
+}
+
+func (s *SubscriptionService) checkoutInvoice(subscription *models.Subscription) (*models.Invoice, error) {
+	if subscription.LatestInvoice != nil {
+		return subscription.LatestInvoice, nil
+	}
+	if subscription.LatestInvoiceID != nil {
+		invoice, err := s.rc.InvoiceRepository.FindById(*subscription.LatestInvoiceID, nil)
+		if err != nil {
+			return nil, responses.InternalServerError(err)
+		}
+		if invoice != nil {
+			return invoice, nil
+		}
+	}
+
+	invoice := &models.Invoice{
+		TenantID:             subscription.TenantID,
+		SubscriptionID:       subscription.ID,
+		CustomerID:           subscription.CustomerID,
+		Status:               models.InvoiceStatusOpen,
+		AmountDue:            subscription.Amount,
+		AmountPaid:           0,
+		AmountRemaining:      subscription.Amount,
+		Currency:             subscription.Currency,
+		BillingPeriodStart:   subscription.CurrentBillingCycleStart,
+		BillingPeriodEnd:     subscription.CurrentBillingCycleEnd,
+		DueAt:                subscription.CurrentBillingCycleStart,
+		NextPaymentAttemptAt: subscription.CurrentBillingCycleStart,
+	}
+
+	code, err := utils.GenerateCode("INV")
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+	invoice.Code = code
+
+	invoice, err = s.rc.InvoiceRepository.Create(invoice, nil)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	return invoice, nil
+}
+
+type subscriptionPaymentFacts struct {
+	Payments      int64
+	LifetimeValue int64
+}
+
+func (s *SubscriptionService) subscriptionPaymentFacts(subscriptionIDs []string) (map[string]subscriptionPaymentFacts, error) {
+	facts := make(map[string]subscriptionPaymentFacts, len(subscriptionIDs))
+	if len(subscriptionIDs) == 0 {
+		return facts, nil
+	}
+
+	var rows []struct {
+		SubscriptionID string
+		Payments       int64
+		LifetimeValue  int64
+	}
+	if err := s.rc.DB.
+		Table(models.TableNameInvoices).
+		Select("subscription_id, COUNT(*) as payments, COALESCE(SUM(amount_paid), 0) as lifetime_value").
+		Where("subscription_id IN ? AND status = ?", subscriptionIDs, models.InvoiceStatusPaid).
+		Group("subscription_id").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		facts[row.SubscriptionID] = subscriptionPaymentFacts{
+			Payments:      row.Payments,
+			LifetimeValue: row.LifetimeValue,
+		}
+	}
+
+	return facts, nil
+}
+
+func (s *SubscriptionService) formatSubscriptions(subscriptions []models.Subscription) ([]responses.SubscriptionResponse, error) {
+	ids := make([]string, 0, len(subscriptions))
+	for _, subscription := range subscriptions {
+		ids = append(ids, subscription.ID)
+	}
+
+	facts, err := s.subscriptionPaymentFacts(ids)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]responses.SubscriptionResponse, 0, len(subscriptions))
+	for _, subscription := range subscriptions {
+		fact := facts[subscription.ID]
+		var plan responses.SubscriptionPlanResponse
+		if subscription.Plan != nil {
+			plan = responses.SubscriptionPlanResponse{
+				ID:   subscription.Plan.ID,
+				Name: subscription.Plan.Name,
+				Code: subscription.Plan.Code,
+			}
+		}
+
+		var customer responses.SubscriptionCustomerResponse
+		if subscription.Customer != nil {
+			customer = responses.SubscriptionCustomerResponse{
+				ID:    subscription.Customer.ID,
+				Code:  subscription.Customer.Code,
+				Name:  subscription.Customer.Name,
+				Email: subscription.Customer.Email,
+			}
+		}
+
+		var latestInvoice *responses.SubscriptionInvoiceResponse
+		if subscription.LatestInvoice != nil {
+			latestInvoice = &responses.SubscriptionInvoiceResponse{
+				ID:           subscription.LatestInvoice.ID,
+				Code:         subscription.LatestInvoice.Code,
+				Status:       subscription.LatestInvoice.Status,
+				CheckoutLink: subscription.LatestInvoice.CheckoutLink,
+			}
+		}
+
+		subscribedFrom := subscription.CreatedAt
+		if subscription.StartedAt != nil {
+			subscribedFrom = *subscription.StartedAt
+		}
+		subscribedForDays := int(time.Since(subscribedFrom).Hours() / 24)
+		if subscribedForDays < 0 {
+			subscribedForDays = 0
+		}
+
+		var paymentSource *responses.CustomerPaymentSourceDetail
+		if subscription.PaymentSource != nil {
+			source := billingPaymentSourceDetail(*subscription.PaymentSource)
+			paymentSource = &source
+		}
+
+		result = append(result, responses.SubscriptionResponse{
+			ID:                       subscription.ID,
+			Code:                     subscription.Code,
+			Status:                   subscription.Status,
+			Amount:                   subscription.Amount,
+			Currency:                 subscription.Currency,
+			Interval:                 subscription.Interval,
+			IntervalCount:            subscription.IntervalCount,
+			StartedAt:                subscription.StartedAt,
+			CancelledAt:              subscription.CancelledAt,
+			PausedAt:                 subscription.PausedAt,
+			CurrentBillingCycleStart: subscription.CurrentBillingCycleStart,
+			CurrentBillingCycleEnd:   subscription.CurrentBillingCycleEnd,
+			LatestInvoiceID:          subscription.LatestInvoiceID,
+			AllowRetries:             subscription.AllowRetries,
+			CanGenerateCheckoutLink:  canGenerateCheckoutLink(&subscription),
+			Payments:                 fact.Payments,
+			LifetimeValue:            fact.LifetimeValue,
+			SubscribedForDays:        subscribedForDays,
+			Plan:                     plan,
+			Customer:                 customer,
+			PaymentSource:            paymentSource,
+			LatestInvoice:            latestInvoice,
+			CreatedAt:                subscription.CreatedAt,
+			UpdatedAt:                subscription.UpdatedAt,
+		})
+	}
+
+	return result, nil
+}
+
+func billingPaymentSourceDetail(source models.PaymentSource) responses.CustomerPaymentSourceDetail {
+	return responses.CustomerPaymentSourceDetail{
+		ID:                 source.ID,
+		Type:               string(source.Type),
+		Status:             string(source.Status),
+		CreatedAt:          source.CreatedAt,
+		Card:               source.Card,
+		Bank:               source.Bank,
+		ExpiresSoon:        cardExpiresSoon(source.Card, time.Now()),
+		ExpirationMailSent: source.ExpirationMailSent,
+	}
+}
+
+func canGenerateCheckoutLink(subscription *models.Subscription) bool {
+	if subscription.Status == models.SubscriptionStatusCanceled {
+		return false
+	}
+	if subscription.LatestInvoiceID == nil {
+		return true
+	}
+	if subscription.LatestInvoice == nil {
+		return true
+	}
+	if subscription.PaymentSourceID == nil {
+		return true
+	}
+
+	return subscription.LatestInvoice.Status != models.InvoiceStatusPaid && subscription.LatestInvoice.Status != models.InvoiceStatusRefunded
 }

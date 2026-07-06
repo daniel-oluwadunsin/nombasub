@@ -258,6 +258,11 @@ func applyTemplateCopy(templateName models.EmailTemplateName, ctx *models.EmailC
 		ctx.Preheader = "We could not complete your subscription payment."
 		ctx.Intro = "Your subscription has been paused."
 		ctx.Body = "We could not complete the latest invoice payment, so billing has been paused until the payment issue is resolved."
+	case models.EmailTemplateSubscriptionCanceled:
+		ctx.Title = "Your subscription has been canceled"
+		ctx.Preheader = "Your subscription billing has been stopped."
+		ctx.Intro = "Your subscription has been canceled."
+		ctx.Body = "Billing for this subscription has stopped. Any open invoice for this subscription has been closed."
 	}
 }
 
@@ -275,6 +280,8 @@ func emailSubject(templateName models.EmailTemplateName, ctx models.EmailContext
 		return "Your subscription card is expiring soon"
 	case models.EmailTemplateSubscriptionPaused:
 		return "Your subscription has been paused"
+	case models.EmailTemplateSubscriptionCanceled:
+		return "Your subscription has been canceled"
 	default:
 		return ctx.Title
 	}

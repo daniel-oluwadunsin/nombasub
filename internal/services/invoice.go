@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/daniel-oluwadunsin/nombasub/internal/helpers/utils"
@@ -11,6 +12,9 @@ import (
 	"github.com/daniel-oluwadunsin/nombasub/internal/providers/nomba"
 	"github.com/daniel-oluwadunsin/nombasub/internal/queue"
 	"github.com/daniel-oluwadunsin/nombasub/internal/repositories"
+	"github.com/daniel-oluwadunsin/nombasub/internal/requests"
+	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
+	"github.com/google/uuid"
 )
 
 type InvoiceService struct {
@@ -124,7 +128,7 @@ func (s *InvoiceService) processDueSubscription(subscription *models.Subscriptio
 		if subscription.PaymentSourceID != nil && *subscription.PaymentSourceID != "" {
 			return s.failInvoice(invoice, subscription, "attached payment source is inactive", models.WebhookDeliveryEventTypeInvoiceMarkedUncollectible)
 		}
-		return s.createCheckout(invoice, subscription)
+		return s.createCheckout(invoice, subscription, true)
 	}
 
 	if paymentSource.Type == models.PaymentSourceTypeCard {
@@ -188,7 +192,7 @@ func (s *InvoiceService) findActivePaymentSource(subscription *models.Subscripti
 	return paymentSource, nil
 }
 
-func (s *InvoiceService) createCheckout(invoice *models.Invoice, subscription *models.Subscription) error {
+func (s *InvoiceService) createCheckout(invoice *models.Invoice, subscription *models.Subscription, sendEmail bool) error {
 	tenant, err := s.rc.TenantRepository.FindById(subscription.TenantID, nil)
 	if err != nil {
 		return err
@@ -265,9 +269,278 @@ func (s *InvoiceService) createCheckout(invoice *models.Invoice, subscription *m
 		"invoice":     invoice,
 		"checkoutUrl": response.Data.CheckoutLink,
 	})
-	enqueueCheckoutEmail(s.rc, s.publisher, invoice, response.Data.CheckoutLink)
+	if sendEmail {
+		enqueueCheckoutEmail(s.rc, s.publisher, invoice, response.Data.CheckoutLink)
+	}
 
 	return nil
+}
+
+func (s *InvoiceService) CreateCheckoutForSubscription(invoice *models.Invoice, subscription *models.Subscription, sendEmail bool) (string, error) {
+	if invoice.CheckoutLink != nil && *invoice.CheckoutLink != "" {
+		if sendEmail {
+			enqueueCheckoutEmail(s.rc, s.publisher, invoice, *invoice.CheckoutLink)
+		}
+		return *invoice.CheckoutLink, nil
+	}
+
+	if err := s.createCheckout(invoice, subscription, sendEmail); err != nil {
+		return "", err
+	}
+
+	if invoice.CheckoutLink == nil || *invoice.CheckoutLink == "" {
+		return "", fmt.Errorf("checkout provider did not return a checkout link")
+	}
+
+	return *invoice.CheckoutLink, nil
+}
+
+func (s *InvoiceService) GetInvoices(tenantID string, query requests.GetInvoiceQuery) (*responses.PaginatedResponse[responses.InvoiceResponse], error) {
+	conditions := []string{"invoices.tenant_id = ?"}
+	args := []interface{}{tenantID}
+	if query.Search != nil && *query.Search != "" {
+		search := "%" + *query.Search + "%"
+		conditions = append(conditions, "(invoices.code ILIKE ? OR plans.name ILIKE ? OR subscriptions.code ILIKE ?)")
+		args = append(args, search, search, search)
+	}
+	if query.Status != nil && *query.Status != "" {
+		conditions = append(conditions, "invoices.status = ?")
+		args = append(args, *query.Status)
+	}
+
+	response, err := s.rc.InvoiceRepository.FindManyPaginatedRaw(&repositories.FindArgs{
+		Filter: repositories.NewQueryFilter().Where(strings.Join(conditions, " AND "), args...),
+		Joins: []repositories.Join{
+			*repositories.NewJoin("LEFT JOIN subscriptions ON subscriptions.id = invoices.subscription_id"),
+			*repositories.NewJoin("LEFT JOIN plans ON plans.id = subscriptions.plan_id"),
+		},
+		Preloads: []repositories.Preload{
+			{Association: "Customer"},
+			{Association: "Subscription"},
+			{Association: "Subscription.Plan"},
+		},
+		OrderBy: []repositories.OrderBy{{Column: "invoices.created_at", Desc: true}},
+	}, &query.PaginationQuery)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	data, err := s.formatInvoices(response.Data)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	return &responses.PaginatedResponse[responses.InvoiceResponse]{
+		Data:            data,
+		TotalCount:      response.TotalCount,
+		Page:            response.Page,
+		Limit:           response.Limit,
+		TotalPages:      response.TotalPages,
+		HasNextPage:     response.HasNextPage,
+		HasPreviousPage: response.HasPreviousPage,
+	}, nil
+}
+
+func (s *InvoiceService) GetInvoice(tenantID, idOrCode string) (*responses.InvoiceResponse, error) {
+	invoice, err := s.invoiceModel(tenantID, idOrCode)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := s.formatInvoices([]models.Invoice{*invoice})
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+	if len(data) == 0 {
+		return nil, responses.NotFound("Invoice not found")
+	}
+
+	return &data[0], nil
+}
+
+func (s *InvoiceService) GenerateCheckoutLink(tenantID, idOrCode string, sendEmail bool) (*responses.GenerateInvoiceCheckoutLinkResponse, error) {
+	invoice, err := s.invoiceModel(tenantID, idOrCode)
+	if err != nil {
+		return nil, err
+	}
+	if invoice.Status != models.InvoiceStatusOpen && invoice.Status != models.InvoiceStatusDraft && invoice.Status != models.InvoiceStatusFailed {
+		return nil, responses.BadRequest("checkout link can only be generated for draft, open, or failed invoices")
+	}
+
+	subscription, err := s.rc.SubscriptionRepository.FindById(invoice.SubscriptionID, nil)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+	if subscription == nil {
+		return nil, responses.NotFound("Subscription not found")
+	}
+
+	if invoice.Status == models.InvoiceStatusDraft {
+		invoice.Status = models.InvoiceStatusOpen
+		if _, err := s.rc.InvoiceRepository.Update(invoice, nil); err != nil {
+			return nil, responses.InternalServerError(err)
+		}
+	}
+
+	link, err := s.CreateCheckoutForSubscription(invoice, subscription, sendEmail)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	return &responses.GenerateInvoiceCheckoutLinkResponse{CheckoutLink: link, Sent: sendEmail}, nil
+}
+
+func (s *InvoiceService) invoiceModel(tenantID, idOrCode string) (*models.Invoice, error) {
+	var filter *repositories.QueryFilter
+
+	if uuid.Validate(idOrCode) == nil {
+		filter = repositories.NewQueryFilter().Where("tenant_id = ? AND id = ?", tenantID, idOrCode)
+	} else {
+		filter = repositories.NewQueryFilter().Where("tenant_id = ? AND code = ?", tenantID, idOrCode)
+	}
+
+	invoice, err := s.rc.InvoiceRepository.FindRaw(&repositories.FindArgs{
+		Filter: filter,
+		Preloads: []repositories.Preload{
+			{Association: "Customer"},
+			{Association: "Subscription"},
+			{Association: "Subscription.Plan"},
+		},
+	})
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+	if invoice == nil {
+		return nil, responses.NotFound("Invoice not found")
+	}
+	return invoice, nil
+}
+
+func (s *InvoiceService) formatInvoices(invoices []models.Invoice) ([]responses.InvoiceResponse, error) {
+	result := make([]responses.InvoiceResponse, 0, len(invoices))
+	for _, invoice := range invoices {
+		paymentIntent, err := s.invoicePaymentIntent(invoice.TenantID, invoice.ID)
+		if err != nil {
+			return nil, err
+		}
+		refund, err := s.invoiceRefund(invoice.TenantID, invoice.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		var plan responses.InvoicePlanResponse
+		var customer responses.CustomerProfileResponse
+		var subscription responses.InvoiceSubscriptionResponse
+		if invoice.Customer != nil {
+			customer = responses.CustomerProfileResponse{
+				ID:          invoice.Customer.ID,
+				Code:        invoice.Customer.Code,
+				Name:        invoice.Customer.Name,
+				Email:       invoice.Customer.Email,
+				PhoneNumber: invoice.Customer.PhoneNumber,
+				ExternalRef: invoice.Customer.ExternalRef,
+				CreatedAt:   invoice.Customer.CreatedAt,
+				UpdatedAt:   invoice.Customer.UpdatedAt,
+			}
+		}
+		if invoice.Subscription != nil {
+			subscription = responses.InvoiceSubscriptionResponse{ID: invoice.Subscription.ID, Code: invoice.Subscription.Code}
+			if invoice.Subscription.Plan != nil {
+				plan = responses.InvoicePlanResponse{
+					ID:   invoice.Subscription.Plan.ID,
+					Name: invoice.Subscription.Plan.Name,
+					Code: invoice.Subscription.Plan.Code,
+				}
+			}
+		}
+
+		var paymentIntentResponse *responses.InvoicePaymentIntentResponse
+		if paymentIntent != nil {
+			var paymentSource *responses.CustomerPaymentSourceDetail
+			if paymentIntent.PaymentSource != nil {
+				source := billingPaymentSourceDetail(*paymentIntent.PaymentSource)
+				paymentSource = &source
+			}
+
+			paymentIntentResponse = &responses.InvoicePaymentIntentResponse{
+				ID:                     paymentIntent.ID,
+				Code:                   paymentIntent.Code,
+				Status:                 paymentIntent.Status,
+				ProviderTransactionID:  paymentIntent.ProviderTransactionID,
+				ProviderTransactionRef: paymentIntent.ProviderTransactionReference,
+				PaymentSource:          paymentSource,
+			}
+		}
+
+		var refundData *responses.RefundResponse
+		if refund != nil {
+			formattedRefund := refundResponse(*refund)
+			refundData = &formattedRefund
+		}
+
+		result = append(result, responses.InvoiceResponse{
+			ID:                 invoice.ID,
+			Code:               invoice.Code,
+			Status:             invoice.Status,
+			AmountDue:          invoice.AmountDue,
+			AmountPaid:         invoice.AmountPaid,
+			AmountRemaining:    invoice.AmountRemaining,
+			Currency:           invoice.Currency,
+			BillingPeriodStart: invoice.BillingPeriodStart,
+			BillingPeriodEnd:   invoice.BillingPeriodEnd,
+			DueAt:              invoice.DueAt,
+			PaidAt:             invoice.PaidAt,
+			FailedAt:           invoice.FailedAt,
+			RefundedAt:         invoice.RefundedAt,
+			CheckoutLink:       invoice.CheckoutLink,
+			FailureReason:      invoice.FailureReason,
+			CanBeRefunded:      CanRefundInvoice(&invoice),
+			Plan:               plan,
+			Customer:           customer,
+			Subscription:       subscription,
+			PaymentIntent:      paymentIntentResponse,
+			Refund:             refundData,
+			CreatedAt:          invoice.CreatedAt,
+			UpdatedAt:          invoice.UpdatedAt,
+		})
+	}
+
+	return result, nil
+}
+
+func (s *InvoiceService) invoicePaymentIntent(tenantID, invoiceID string) (*models.PaymentIntent, error) {
+	paymentIntent, err := s.rc.PaymentIntentRepository.Find(&models.PaymentIntent{
+		TenantID:  tenantID,
+		InvoiceID: &invoiceID,
+	}, &repositories.FindArgs{
+		Preloads: []repositories.Preload{{Association: "PaymentSource"}},
+		OrderBy:  []repositories.OrderBy{{Column: "created_at", Desc: true}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return paymentIntent, nil
+}
+
+func (s *InvoiceService) invoiceRefund(tenantID, invoiceID string) (*models.Refund, error) {
+	refund, err := s.rc.RefundRepository.Find(&models.Refund{
+		TenantID:  tenantID,
+		InvoiceID: &invoiceID,
+	}, &repositories.FindArgs{
+		Preloads: []repositories.Preload{{Association: "Invoice"}},
+		OrderBy:  []repositories.OrderBy{{Column: "created_at", Desc: true}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return refund, nil
+}
+
+func CanRefundInvoice(invoice *models.Invoice) bool {
+	if invoice == nil || invoice.Status != models.InvoiceStatusPaid || invoice.PaidAt == nil {
+		return false
+	}
+	return time.Since(*invoice.PaidAt) <= 12*time.Hour
 }
 
 func (s *InvoiceService) chargeCard(invoice *models.Invoice, subscription *models.Subscription, paymentSource *models.PaymentSource) error {

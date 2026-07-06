@@ -218,6 +218,7 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 						subscription.CurrentBillingCycleEnd = &endDate
 						subscription.LatestInvoiceID = &invoice.ID
 						subscription.InvoiceCount++
+						subscription.Status = models.SubscriptionStatusActive
 						_, err = ws.rc.SubscriptionRepository.Update(subscription, trx)
 						if err != nil {
 							return err

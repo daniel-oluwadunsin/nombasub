@@ -74,7 +74,16 @@ func New(
 			subscriptions.POST("/", handlers.CreateSubscription)
 			subscriptions.GET("/", handlers.GetSubscriptions)
 			subscriptions.GET("/:idOrCode", handlers.GetSubscription)
+			subscriptions.POST("/:idOrCode/checkout-link", handlers.GenerateSubscriptionCheckoutLink)
+			subscriptions.POST("/:idOrCode/cancel", handlers.CancelSubscription)
 			subscriptions.PUT("/:idOrCode/mandate", handlers.UpdateSubscriptionMandateStatus)
+		}
+
+		invoices := v1.Group("/invoice")
+		{
+			invoices.GET("/", handlers.GetInvoices)
+			invoices.GET("/:idOrCode", handlers.GetInvoice)
+			invoices.POST("/:idOrCode/checkout-link", handlers.GenerateInvoiceCheckoutLink)
 		}
 
 		dashboard := v1.Group("/dashboard")

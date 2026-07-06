@@ -17,3 +17,7 @@ type GetSubscriptionQuery struct {
 type UpdateMandateStatusRequest struct {
 	Status string `json:"status" binding:"required,oneof=ACTIVE SUSPENDED DELETED"`
 }
+
+type GenerateSubscriptionCheckoutLinkRequest struct {
+	SendEmail bool `json:"sendEmail"`
+}
