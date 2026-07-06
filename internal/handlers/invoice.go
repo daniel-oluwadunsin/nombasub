@@ -39,6 +39,32 @@ func (h *Handler) GetInvoice(ctx *gin.Context) {
 	responses.Success(ctx, http.StatusOK, "Invoice retrieved successfully", data)
 }
 
+func (h *Handler) RetryInvoicePayment(ctx *gin.Context) {
+	tenantID := ctx.GetString(middleware.TenantIdCtxKey)
+	idOrCode := ctx.Param("idOrCode")
+
+	data, err := h.sc.InvoiceService.RetryInvoicePayment(tenantID, idOrCode)
+	if err != nil {
+		responses.Error(ctx, err)
+		return
+	}
+
+	responses.Success(ctx, http.StatusOK, "Invoice payment retry initiated", data)
+}
+
+func (h *Handler) SendInvoiceReminder(ctx *gin.Context) {
+	tenantID := ctx.GetString(middleware.TenantIdCtxKey)
+	idOrCode := ctx.Param("idOrCode")
+
+	data, err := h.sc.InvoiceService.SendPaymentReminder(tenantID, idOrCode)
+	if err != nil {
+		responses.Error(ctx, err)
+		return
+	}
+
+	responses.Success(ctx, http.StatusOK, "Payment reminder sent", data)
+}
+
 func (h *Handler) GenerateInvoiceCheckoutLink(ctx *gin.Context) {
 	var body requests.GenerateInvoiceCheckoutLinkRequest
 	if err := ctx.ShouldBindJSON(&body); err != nil {

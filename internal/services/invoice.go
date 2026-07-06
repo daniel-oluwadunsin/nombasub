@@ -358,6 +358,86 @@ func (s *InvoiceService) GetInvoice(tenantID, idOrCode string) (*responses.Invoi
 	return &data[0], nil
 }
 
+func (s *InvoiceService) RetryInvoicePayment(tenantID, idOrCode string) (*responses.InvoiceResponse, error) {
+	invoice, err := s.invoiceModel(tenantID, idOrCode)
+	if err != nil {
+		return nil, err
+	}
+	if invoice.Status == models.InvoiceStatusPaid {
+		return nil, responses.BadRequest("invoice is already paid")
+	}
+	if invoice.Status == models.InvoiceStatusRefunded {
+		return nil, responses.BadRequest("invoice has been refunded")
+	}
+
+	subscription, err := s.rc.SubscriptionRepository.FindById(invoice.SubscriptionID, nil)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+	if subscription == nil {
+		return nil, responses.NotFound("Subscription not found")
+	}
+
+	if invoice.Status == models.InvoiceStatusFailed {
+		invoice.Status = models.InvoiceStatusOpen
+		invoice.FailedAt = nil
+		invoice.FailureReason = nil
+	}
+	invoice.NextPaymentAttemptAt = utils.ToPtr(time.Now())
+	if _, err := s.rc.InvoiceRepository.Update(invoice, nil); err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	if subscription.Status == models.SubscriptionStatusPaused {
+		subscription.Status = models.SubscriptionStatusPastDue
+		subscription.PausedAt = nil
+		if _, err := s.rc.SubscriptionRepository.Update(subscription, nil); err != nil {
+			return nil, responses.InternalServerError(err)
+		}
+	}
+
+	if err := s.processDueSubscription(subscription); err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	return s.GetInvoice(tenantID, idOrCode)
+}
+
+func (s *InvoiceService) SendPaymentReminder(tenantID, idOrCode string) (*responses.GenerateInvoiceCheckoutLinkResponse, error) {
+	invoice, err := s.invoiceModel(tenantID, idOrCode)
+	if err != nil {
+		return nil, err
+	}
+	if invoice.Status == models.InvoiceStatusPaid {
+		return nil, responses.BadRequest("invoice is already paid")
+	}
+	if invoice.Status == models.InvoiceStatusRefunded {
+		return nil, responses.BadRequest("invoice has been refunded")
+	}
+
+	subscription, err := s.rc.SubscriptionRepository.FindById(invoice.SubscriptionID, nil)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+	if subscription == nil {
+		return nil, responses.NotFound("Subscription not found")
+	}
+
+	if invoice.Status == models.InvoiceStatusDraft {
+		invoice.Status = models.InvoiceStatusOpen
+		if _, err := s.rc.InvoiceRepository.Update(invoice, nil); err != nil {
+			return nil, responses.InternalServerError(err)
+		}
+	}
+
+	link, err := s.CreateCheckoutForSubscription(invoice, subscription, true)
+	if err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	return &responses.GenerateInvoiceCheckoutLinkResponse{CheckoutLink: link, Sent: true}, nil
+}
+
 func (s *InvoiceService) GenerateCheckoutLink(tenantID, idOrCode string, sendEmail bool) (*responses.GenerateInvoiceCheckoutLinkResponse, error) {
 	invoice, err := s.invoiceModel(tenantID, idOrCode)
 	if err != nil {

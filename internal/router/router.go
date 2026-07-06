@@ -84,6 +84,8 @@ func New(
 			invoices.GET("/", handlers.GetInvoices)
 			invoices.GET("/:idOrCode", handlers.GetInvoice)
 			invoices.POST("/:idOrCode/checkout-link", handlers.GenerateInvoiceCheckoutLink)
+			invoices.POST("/:idOrCode/retry", handlers.RetryInvoicePayment)
+			invoices.POST("/:idOrCode/send-reminder", handlers.SendInvoiceReminder)
 		}
 
 		dashboard := v1.Group("/dashboard")
