@@ -18,6 +18,8 @@ func NewServer(cfg *Config) *Server {
 		"nombasub-mcp",
 		"0.1.0",
 		server.WithToolCapabilities(false),
+		server.WithResourceCapabilities(false, false),
+		server.WithPromptCapabilities(false),
 		server.WithLogging(),
 	)
 
