@@ -70,7 +70,7 @@ func (r *Report) handleBusinessReport(ctx context.Context, req mcp.CallToolReque
 	a := &Analytics{Engine: r.Engine}
 	an, err := a.fetchAnalytics(ctx, req.GetString("from", ""), req.GetString("to", ""))
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return upstreamError(err)
 	}
 
 	var b strings.Builder
@@ -190,7 +190,7 @@ func (r *Report) handleDunningReport(ctx context.Context, req mcp.CallToolReques
 	a := &Analytics{Engine: r.Engine}
 	an, err := a.fetchAnalytics(ctx, req.GetString("from", ""), req.GetString("to", ""))
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return upstreamError(err)
 	}
 
 	var b strings.Builder

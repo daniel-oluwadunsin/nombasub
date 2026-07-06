@@ -150,18 +150,21 @@ func (a *Analytics) computeMetricTool() mcp.Tool {
 func (a *Analytics) handleComputeMetric(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	metric, err := req.RequireString("metric")
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return validationError(err)
 	}
 	from := req.GetString("from", "")
 	to := req.GetString("to", "")
+	if err := validateDates(map[string]string{"from": from, "to": to}); err != nil {
+		return validationError(err)
+	}
 
 	an, err := a.fetchAnalytics(ctx, from, to)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return upstreamError(err)
 	}
 	value, err := extractMetric(metric, an)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return validationError(err)
 	}
 
 	out := map[string]any{
@@ -236,7 +239,7 @@ func (a *Analytics) comparePeriodsTool() mcp.Tool {
 func (a *Analytics) handleComparePeriods(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	metric, err := req.RequireString("metric")
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return validationError(err)
 	}
 
 	curFrom := req.GetString("current_from", "")
@@ -244,12 +247,19 @@ func (a *Analytics) handleComparePeriods(ctx context.Context, req mcp.CallToolRe
 	prevFrom := req.GetString("previous_from", "")
 	prevTo := req.GetString("previous_to", "")
 
+	if err := validateDates(map[string]string{
+		"current_from": curFrom, "current_to": curTo,
+		"previous_from": prevFrom, "previous_to": prevTo,
+	}); err != nil {
+		return validationError(err)
+	}
+
 	if curFrom == "" || curTo == "" {
 		if preset := req.GetString("current", "this_month"); preset != "" {
 			if f, t, ok := resolvePeriod(preset); ok {
 				curFrom, curTo = f, t
 			} else {
-				return mcp.NewToolResultError(fmt.Sprintf("unknown current preset %q", preset)), nil
+				return validationError(fmt.Errorf("unknown current preset %q", preset))
 			}
 		}
 	}
@@ -258,26 +268,26 @@ func (a *Analytics) handleComparePeriods(ctx context.Context, req mcp.CallToolRe
 			if f, t, ok := resolvePeriod(preset); ok {
 				prevFrom, prevTo = f, t
 			} else {
-				return mcp.NewToolResultError(fmt.Sprintf("unknown previous preset %q", preset)), nil
+				return validationError(fmt.Errorf("unknown previous preset %q", preset))
 			}
 		}
 	}
 
 	curAn, err := a.fetchAnalytics(ctx, curFrom, curTo)
 	if err != nil {
-		return mcp.NewToolResultError("current period: " + err.Error()), nil
+		return upstreamError(fmt.Errorf("current period: %w", err))
 	}
 	prevAn, err := a.fetchAnalytics(ctx, prevFrom, prevTo)
 	if err != nil {
-		return mcp.NewToolResultError("previous period: " + err.Error()), nil
+		return upstreamError(fmt.Errorf("previous period: %w", err))
 	}
 	curVal, err := extractMetric(metric, curAn)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return validationError(err)
 	}
 	prevVal, err := extractMetric(metric, prevAn)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return validationError(err)
 	}
 
 	delta := curVal.Value - prevVal.Value
@@ -328,18 +338,21 @@ func (a *Analytics) explainMetricChangeTool() mcp.Tool {
 func (a *Analytics) handleExplainMetricChange(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	metric, err := req.RequireString("metric")
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return validationError(err)
 	}
 	from := req.GetString("from", "")
 	to := req.GetString("to", "")
+	if err := validateDates(map[string]string{"from": from, "to": to}); err != nil {
+		return validationError(err)
+	}
 
 	an, err := a.fetchAnalytics(ctx, from, to)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return upstreamError(err)
 	}
 	curVal, err := extractMetric(metric, an)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return validationError(err)
 	}
 
 	prevVal, prevPeriod := previousPeriodMetric(metric, an)

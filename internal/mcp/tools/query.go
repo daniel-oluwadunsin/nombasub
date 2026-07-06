@@ -83,9 +83,13 @@ func (q *Query) handleGetCustomers(ctx context.Context, req mcp.CallToolRequest)
 	setIfNotEmpty(query, req, "search", "from", "to")
 	applyPagination(req, query)
 
+	if err := validateDates(map[string]string{"from": query["from"], "to": query["to"]}); err != nil {
+		return validationError(err)
+	}
+
 	data, err := q.Engine.Get(ctx, "/v1/customer/", query)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return upstreamError(err)
 	}
 	return prettyJSON(data)
 }
@@ -110,7 +114,7 @@ func (q *Query) handleGetSubscriptions(ctx context.Context, req mcp.CallToolRequ
 
 	data, err := q.Engine.Get(ctx, "/v1/subscription/", query)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return upstreamError(err)
 	}
 	return prettyJSON(data)
 }
@@ -132,9 +136,13 @@ func (q *Query) handleGetInvoices(ctx context.Context, req mcp.CallToolRequest) 
 	setIfNotEmpty(query, req, "status", "search")
 	applyPagination(req, query)
 
+	if err := validateEnum("status", query["status"], "draft", "open", "paid", "failed", "refunded"); err != nil {
+		return validationError(err)
+	}
+
 	data, err := q.Engine.Get(ctx, "/v1/invoice/", query)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return upstreamError(err)
 	}
 	return prettyJSON(data)
 }
@@ -163,9 +171,19 @@ func (q *Query) handleGetPlans(ctx context.Context, req mcp.CallToolRequest) (*m
 	}
 	applyPagination(req, query)
 
+	if err := validateEnum("status", query["status"], "active", "inactive"); err != nil {
+		return validationError(err)
+	}
+	if err := validateEnum("interval", query["interval"], "daily", "weekly", "bi-weekly", "monthly", "quarterly", "yearly"); err != nil {
+		return validationError(err)
+	}
+	if err := validateDates(map[string]string{"from": query["from"], "to": query["to"]}); err != nil {
+		return validationError(err)
+	}
+
 	data, err := q.Engine.Get(ctx, "/v1/plan/", query)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return upstreamError(err)
 	}
 	return prettyJSON(data)
 }
@@ -192,9 +210,16 @@ func (q *Query) handleGetPaymentAttempts(ctx context.Context, req mcp.CallToolRe
 	setIfNotEmpty(query, req, "status", "customerId", "subscriptionId", "invoiceId", "search", "from", "to")
 	applyPagination(req, query)
 
+	if err := validateEnum("status", query["status"], "PENDING_BILLING", "SUCCESS", "PAYMENT_FAILED", "REFUND", "CANCELLED"); err != nil {
+		return validationError(err)
+	}
+	if err := validateDates(map[string]string{"from": query["from"], "to": query["to"]}); err != nil {
+		return validationError(err)
+	}
+
 	data, err := q.Engine.Get(ctx, "/v1/checkout/payment-attempts", query)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return upstreamError(err)
 	}
 	return prettyJSON(data)
 }
@@ -218,9 +243,13 @@ func (q *Query) handleGetWebhookDeliveries(ctx context.Context, req mcp.CallTool
 	setIfNotEmpty(query, req, "status", "eventType", "from", "to")
 	applyPagination(req, query)
 
+	if err := validateDates(map[string]string{"from": query["from"], "to": query["to"]}); err != nil {
+		return validationError(err)
+	}
+
 	data, err := q.Engine.Get(ctx, "/v1/webhook-deliveries/", query)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return upstreamError(err)
 	}
 	return prettyJSON(data)
 }

@@ -66,20 +66,23 @@ func (a *Action) retryPaymentTool() mcp.Tool {
 func (a *Action) handleRetryPayment(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	idOrCode, err := req.RequireString("invoice_id_or_code")
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return validationError(err)
+	}
+	if err := validateIdentifier("invoice_id_or_code", idOrCode); err != nil {
+		return validationError(err)
 	}
 
 	if req.GetBool("dry_run", false) {
 		entity, err := a.Engine.Get(ctx, "/v1/invoice/"+idOrCode, nil)
 		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
+			return upstreamError(err)
 		}
 		return dryRunResult("retry_payment", entity)
 	}
 
 	data, err := a.Engine.Post(ctx, "/v1/invoice/"+idOrCode+"/retry", nil, map[string]any{})
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return upstreamError(err)
 	}
 	return prettyJSON(data)
 }
@@ -98,20 +101,23 @@ func (a *Action) cancelSubscriptionTool() mcp.Tool {
 func (a *Action) handleCancelSubscription(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	idOrCode, err := req.RequireString("subscription_id_or_code")
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return validationError(err)
+	}
+	if err := validateIdentifier("subscription_id_or_code", idOrCode); err != nil {
+		return validationError(err)
 	}
 
 	if req.GetBool("dry_run", false) {
 		entity, err := a.Engine.Get(ctx, "/v1/subscription/"+idOrCode, nil)
 		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
+			return upstreamError(err)
 		}
 		return dryRunResult("cancel_subscription", entity)
 	}
 
 	data, err := a.Engine.Post(ctx, "/v1/subscription/"+idOrCode+"/cancel", nil, map[string]any{})
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return upstreamError(err)
 	}
 	if len(data) == 0 {
 		return mcp.NewToolResultText(fmt.Sprintf(`{"canceled": true, "subscription": %q}`, idOrCode)), nil
@@ -133,13 +139,16 @@ func (a *Action) createPortalLinkTool() mcp.Tool {
 func (a *Action) handleCreatePortalLink(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	idOrCode, err := req.RequireString("subscription_id_or_code")
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return validationError(err)
+	}
+	if err := validateIdentifier("subscription_id_or_code", idOrCode); err != nil {
+		return validationError(err)
 	}
 	body := map[string]any{"sendEmail": req.GetBool("send_email", false)}
 
 	data, err := a.Engine.Post(ctx, "/v1/subscription/"+idOrCode+"/checkout-link", nil, body)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return upstreamError(err)
 	}
 	return prettyJSON(data)
 }
@@ -157,12 +166,15 @@ func (a *Action) sendDunningReminderTool() mcp.Tool {
 func (a *Action) handleSendDunningReminder(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	idOrCode, err := req.RequireString("invoice_id_or_code")
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return validationError(err)
+	}
+	if err := validateIdentifier("invoice_id_or_code", idOrCode); err != nil {
+		return validationError(err)
 	}
 
 	data, err := a.Engine.Post(ctx, "/v1/invoice/"+idOrCode+"/send-reminder", nil, map[string]any{})
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return upstreamError(err)
 	}
 	return prettyJSON(data)
 }
