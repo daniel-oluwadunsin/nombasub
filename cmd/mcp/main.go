@@ -20,6 +20,7 @@ func main() {
 	(&tools.Query{Engine: engine}).Register(srv.MCP)
 	(&tools.Analytics{Engine: engine}).Register(srv.MCP)
 	(&tools.Action{Engine: engine}).Register(srv.MCP)
+	(&tools.Report{Engine: engine}).Register(srv.MCP)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
