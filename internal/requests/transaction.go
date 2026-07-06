@@ -40,3 +40,13 @@ type RefundsQuery struct {
 	From   *string `form:"from"`
 	To     *string `form:"to"`
 }
+
+type PaymentIntentsQuery struct {
+	PaginationQuery
+	Status         *string `form:"status"`
+	CustomerID     *string `form:"customerId"`
+	SubscriptionID *string `form:"subscriptionId"`
+	InvoiceID      *string `form:"invoiceId"`
+	From           *string `form:"from"`
+	To             *string `form:"to"`
+}

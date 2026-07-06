@@ -66,6 +66,7 @@ func New(
 			transactions.POST("/order", handlers.InitializeCardTransaction)
 			transactions.POST("/direct-debit", handlers.InitializeDirectDebitTransaction)
 			transactions.GET("/refunds", handlers.GetRefunds)
+			transactions.GET("/payment-attempts", handlers.GetPaymentIntents)
 			transactions.POST("/refunds", handlers.RefundPaymentOrInvoice)
 		}
 

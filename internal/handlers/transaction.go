@@ -66,6 +66,23 @@ func (h *Handler) RefundPaymentOrInvoice(ctx *gin.Context) {
 	responses.SuccessEmpty(ctx, http.StatusOK, "Refund processed successfully")
 }
 
+func (h *Handler) GetPaymentIntents(ctx *gin.Context) {
+	var query requests.PaymentIntentsQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		responses.Error(ctx, responses.BadRequest(err.Error()))
+		return
+	}
+
+	tenantId := ctx.GetString(middleware.TenantIdCtxKey)
+	result, err := h.sc.TransactionService.ListPaymentIntents(tenantId, query)
+	if err != nil {
+		responses.Error(ctx, err)
+		return
+	}
+
+	responses.Success(ctx, http.StatusOK, "Payment attempts retrieved successfully", result)
+}
+
 func (h *Handler) GetRefunds(ctx *gin.Context) {
 	tenantId := ctx.GetString(middleware.TenantIdCtxKey)
 	var query requests.RefundsQuery

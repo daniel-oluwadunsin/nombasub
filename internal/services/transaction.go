@@ -268,6 +268,95 @@ func (ts *TransactionService) InitializeDirectDebitSubscription(tenantId string,
 	return result, nil
 }
 
+func (ts *TransactionService) ListPaymentIntents(tenantID string, query requests.PaymentIntentsQuery) (*responses.PaymentIntentsResponse, error) {
+	page, limit := paginationValues(query.Page, query.Limit, 20, 100)
+
+	db := ts.rc.DB.Model(&models.PaymentIntent{}).Where("tenant_id = ?", tenantID)
+
+	if query.Search != nil && strings.TrimSpace(*query.Search) != "" {
+		search := "%" + strings.TrimSpace(*query.Search) + "%"
+		db = db.Where("code ILIKE ? OR reference ILIKE ?", search, search)
+	}
+	if query.Status != nil && strings.TrimSpace(*query.Status) != "" {
+		db = db.Where("status = ?", strings.TrimSpace(*query.Status))
+	}
+	if query.CustomerID != nil && strings.TrimSpace(*query.CustomerID) != "" {
+		db = db.Where("customer_id = ?", strings.TrimSpace(*query.CustomerID))
+	}
+	if query.SubscriptionID != nil && strings.TrimSpace(*query.SubscriptionID) != "" {
+		db = db.Where("subscription_id = ?", strings.TrimSpace(*query.SubscriptionID))
+	}
+	if query.InvoiceID != nil && strings.TrimSpace(*query.InvoiceID) != "" {
+		db = db.Where("invoice_id = ?", strings.TrimSpace(*query.InvoiceID))
+	}
+	if query.From != nil && strings.TrimSpace(*query.From) != "" {
+		from, err := parseRefundDate(*query.From, false)
+		if err != nil {
+			return nil, responses.BadRequest("from must use YYYY-MM-DD format")
+		}
+		db = db.Where("created_at >= ?", *from)
+	}
+	if query.To != nil && strings.TrimSpace(*query.To) != "" {
+		to, err := parseRefundDate(*query.To, true)
+		if err != nil {
+			return nil, responses.BadRequest("to must use YYYY-MM-DD format")
+		}
+		db = db.Where("created_at <= ?", *to)
+	}
+
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	var intents []models.PaymentIntent
+	if err := db.
+		Order("created_at DESC").
+		Limit(limit).
+		Offset((page - 1) * limit).
+		Find(&intents).Error; err != nil {
+		return nil, responses.InternalServerError(err)
+	}
+
+	items := make([]responses.PaymentIntentListItem, 0, len(intents))
+	for _, intent := range intents {
+		items = append(items, responses.PaymentIntentListItem{
+			ID:                     intent.ID,
+			Code:                   intent.Code,
+			Status:                 intent.Status,
+			Amount:                 intent.Amount,
+			Currency:               intent.Currency,
+			Reference:              intent.Reference,
+			FailureReason:          intent.FailureReason,
+			CustomerID:             intent.CustomerID,
+			SubscriptionID:         intent.SubscriptionID,
+			InvoiceID:              intent.InvoiceID,
+			PaymentSourceType:      intent.PaymentSourceType,
+			ProviderTransactionID:  intent.ProviderTransactionID,
+			ProviderTransactionRef: intent.ProviderTransactionReference,
+			AttemptedAt:            intent.AttemptedAt,
+			CompletedAt:            intent.CompletedAt,
+			FailedAt:               intent.FailedAt,
+			CreatedAt:              intent.CreatedAt,
+		})
+	}
+
+	totalPages := 0
+	if limit > 0 {
+		totalPages = int(math.Ceil(float64(total) / float64(limit)))
+	}
+
+	return &responses.PaymentIntentsResponse{
+		Data: items,
+		Meta: responses.PaginationMeta{
+			Page:       page,
+			Limit:      limit,
+			Total:      total,
+			TotalPages: totalPages,
+		},
+	}, nil
+}
+
 func (ts *TransactionService) GetRefunds(tenantID string, query requests.RefundsQuery) (*responses.RefundsResponse, error) {
 	page, limit := paginationValues(query.Page, query.Limit, 20, 100)
 
