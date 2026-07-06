@@ -61,6 +61,12 @@ type UpdateDirectDebitManadateRequest struct {
 	MandateStatus MandateStatus `json:"mandateStatus" binding:"required,oneof=ACTIVE SUSPENDED DELETED"`
 }
 
+type RefundRequest struct {
+	TransactionId *string `json:"transactionId"`
+	AccountNumber *string `json:"accountNumber"`
+	BankCode      *string `json:"bankCode"`
+}
+
 type NombaWebhookRequest struct {
 	EventType WebhookEventType `json:"event_type"`
 	RequestID string           `json:"requestId"`

@@ -22,6 +22,7 @@ type Container struct {
 	SettlementRepository             *Repository[models.Settlement]
 	SettlementPayoutRepository       *Repository[models.SettlementPayout]
 	EmailDeliveryRepository          *Repository[models.EmailDelivery]
+	RefundRepository                 *Repository[models.Refund]
 }
 
 func NewContainer(db *gorm.DB) *Container {
@@ -42,5 +43,6 @@ func NewContainer(db *gorm.DB) *Container {
 		SettlementRepository:             New[models.Settlement](db, models.TableNameSettlement),
 		SettlementPayoutRepository:       New[models.SettlementPayout](db, models.TableNameSettlementPayout),
 		EmailDeliveryRepository:          New[models.EmailDelivery](db, models.TableNameEmailDelivery),
+		RefundRepository:                 New[models.Refund](db, models.TableNameRefund),
 	}
 }

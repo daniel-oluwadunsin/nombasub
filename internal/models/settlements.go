@@ -8,6 +8,7 @@ const (
 	SettlementStatusPending   SettlementStatus = "pending"
 	SettlementStatusCompleted SettlementStatus = "completed"
 	SettlementStatusFailed    SettlementStatus = "failed"
+	SettlementStatusRefunded  SettlementStatus = "refunded"
 )
 
 type Settlement struct {
@@ -23,6 +24,9 @@ type Settlement struct {
 	SubscriptionID     *string                `gorm:"column:subscription_id;type:uuid;" json:"subscriptionId"`
 	InvoiceID          *string                `gorm:"column:invoice_id;type:uuid;" json:"invoiceId"`
 	SettlementPayoutID *string                `gorm:"column:settlement_payout_id;type:uuid;" json:"settlementPayoutId"`
+
+	Subscription *Subscription `gorm:"foreignKey:SubscriptionID" json:"subscription"`
+	Invoice      *Invoice      `gorm:"foreignKey:InvoiceID" json:"invoice"`
 }
 
 func (Settlement) TableName() string {

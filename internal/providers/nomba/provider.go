@@ -11,4 +11,5 @@ type Provider interface {
 	GetDirectDebitManadateStatus(mandateId string) (*GetDirectDebitManadateResponse, error)
 	UpdateDirectDebitStatus(UpdateDirectDebitManadateRequest) (*UpdateDirectDebitStatusResponse, error)
 	DebitMandate(DebitMandateRequest) (*DebitMandateResponse, error)
+	RequestRefund(RefundRequest) error
 }

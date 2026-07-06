@@ -193,6 +193,13 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 						if err != nil {
 							return err
 						}
+						if invoice == nil {
+							return nil
+						}
+
+						if invoice.Status == models.InvoiceStatusPaid {
+							return nil
+						}
 
 						invoice.Status = models.InvoiceStatusPaid
 						invoice.AmountPaid = planVersion.Amount
@@ -343,7 +350,8 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 					AttemptedAt:                  utils.ToPtr(time.Now()),
 					PaymentSourceID:              &card.ID,
 					PaymentSourceType:            &card.Type,
-					ProviderTransactionID:        &orderId,
+					ProviderTransactionID:        &payload.Data.Transaction.TransactionID,
+					ProviderOrderID:              &orderId,
 					ProviderTransactionReference: &orderReference,
 				}
 
@@ -352,6 +360,7 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 				if err != nil {
 					return err
 				}
+				initiation.PaymentIntentId = &paymentIntent.ID
 
 				if subscriptionId == "" {
 					enqueueSubscriptionEmail(ws.rc, ws.publisher, models.EmailTemplateSubscriptionCreated, subscription, string(models.EmailTemplateSubscriptionCreated)+":"+subscription.ID)
@@ -376,14 +385,9 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 					Status:         models.SettlementStatusPending,
 					Reference:      initiation.Reference,
 					SettlementTime: time.Now().Add(25 * time.Hour),
+					InvoiceID:      &invoiceId,
+					SubscriptionID: &subscription.ID,
 				}, trx)
-				if err != nil {
-					return err
-				}
-
-				initiation.Status = models.NombaInitiationStatusCompleted
-				initiation.NombaTransactionId = &payload.Data.Transaction.TransactionID
-				_, err = initiationRepository.Update(initiation, trx)
 				if err != nil {
 					return err
 				}
@@ -407,6 +411,176 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 					log.Printf("Error occurred while enqueuing tenant webhook: %v", err)
 				}
 
+			}
+
+			if initiation.Purpose == models.NombaInitiationPurposeChargeCardPayment {
+				tenantId := initiation.Metadata["nombaSubTenantId"].(string)
+				customerCode := initiation.Metadata["nombaSubCustomerCode"].(string)
+				planCode := initiation.Metadata["nombaSubPlanCode"].(string)
+				planVersionNumber := int(initiation.Metadata["nombaSubPlanVersion"].(float64))
+				invoiceId, _ := initiation.Metadata["nombaSubInvoiceId"].(string)
+				subscriptionId, _ := initiation.Metadata["nombaSubSubscriptionId"].(string)
+				paymentSourceId, _ := initiation.Metadata["nombaSubPaymentSourceId"].(string)
+
+				customer, err := customerRepository.Find(&models.Customer{TenantID: tenantId, Code: customerCode}, &repositories.FindArgs{Trx: trx})
+
+				if err != nil {
+					return err
+				}
+
+				planVersion, err := planVersionRepository.Find(
+					&models.PlanVersion{
+						TenantID: tenantId,
+						Code:     planCode,
+						Index:    planVersionNumber,
+					},
+					&repositories.FindArgs{Trx: trx},
+				)
+				if err != nil {
+					return err
+				}
+
+				if customer == nil || planVersion == nil {
+					return errors.New("customer or plan not found for the given tenant and codes")
+				}
+
+				card, err := paymentSourceRepository.Find(&models.PaymentSource{
+					TenantID:   tenantId,
+					CustomerID: customer.ID,
+					Type:       models.PaymentSourceTypeCard,
+					BaseModel:  models.BaseModel{ID: paymentSourceId},
+				}, &repositories.FindArgs{Trx: trx})
+
+				if err != nil {
+					return err
+				}
+
+				if card == nil {
+					return errors.New("Payment method not found")
+				}
+
+				subscription, err := ws.rc.SubscriptionRepository.Find(
+					&models.Subscription{BaseModel: models.BaseModel{ID: subscriptionId}},
+					&repositories.FindArgs{Trx: trx},
+				)
+				if err != nil {
+					return err
+				}
+				if subscription == nil {
+					return errors.New("subscription not found for the given subscription ID")
+				}
+
+				invoice, err := ws.rc.InvoiceRepository.Find(
+					&models.Invoice{BaseModel: models.BaseModel{ID: invoiceId}},
+					&repositories.FindArgs{Trx: trx},
+				)
+				if err != nil {
+					return err
+				}
+				if invoice == nil {
+					return errors.New("invoice not found for the given invoice ID")
+				}
+
+				invoice.Status = models.InvoiceStatusPaid
+				invoice.AmountPaid = planVersion.Amount
+				invoice.AmountRemaining = 0
+				invoice.PaidAt = utils.ToPtr(time.Now())
+
+				_, err = ws.rc.InvoiceRepository.Update(invoice, trx)
+				if err != nil {
+					return err
+				}
+
+				startDate, endDate := utils.GetBillingPeriod(*subscription.CurrentBillingCycleEnd, subscription.Interval, subscription.IntervalCount)
+				subscription.PaymentSourceID = &card.ID
+				subscription.PaymentSourceType = utils.ToPtr(models.PaymentSourceTypeCard)
+				subscription.CurrentBillingCycleStart = &startDate
+				subscription.CurrentBillingCycleEnd = &endDate
+				subscription.LatestInvoiceID = &invoice.ID
+				subscription.InvoiceCount++
+				_, err = ws.rc.SubscriptionRepository.Update(subscription, trx)
+				if err != nil {
+					return err
+				}
+
+				err = queue.EnqueueTenantWebhook(
+					ws.rc,
+					ws.publisher,
+					tenantId,
+					models.WebhookDeliveryEventTypeSubscriptionCreated,
+					subscription,
+					trx,
+				)
+
+				if err != nil {
+					log.Printf("Error occurred while enqueuing tenant webhook: %v", err)
+				}
+
+				err = queue.EnqueueTenantWebhook(
+					ws.rc,
+					ws.publisher,
+					tenantId,
+					models.WebhookDeliveryEventTypeInvoicePaid,
+					invoice,
+					trx,
+				)
+				if err != nil {
+					log.Printf("Error occurred while enqueuing tenant webhook: %v", err)
+				}
+
+				paymentIntent := &models.PaymentIntent{
+					TenantID:                     tenantId,
+					CustomerID:                   customer.ID,
+					SubscriptionID:               subscription.ID,
+					InvoiceID:                    subscription.LatestInvoiceID,
+					PlanID:                       subscription.PlanID,
+					PlanVersionID:                subscription.PlanVersionID,
+					Reference:                    utils.OrStrings(orderReference, initiation.Reference),
+					Amount:                       planVersion.Amount,
+					Currency:                     planVersion.Currency,
+					Status:                       models.PaymentIntentStatusSuccess,
+					AttemptedAt:                  utils.ToPtr(time.Now()),
+					PaymentSourceID:              &card.ID,
+					PaymentSourceType:            &card.Type,
+					ProviderTransactionID:        &payload.Data.Transaction.TransactionID,
+					ProviderOrderID:              &orderId,
+					ProviderTransactionReference: &orderReference,
+				}
+
+				paymentIntent.Code, err = utils.GenerateCode("PAY")
+				_, err = ws.rc.PaymentIntentRepository.Create(paymentIntent, trx)
+				if err != nil {
+					return err
+				}
+				initiation.PaymentIntentId = &paymentIntent.ID
+
+				if invoice != nil {
+					enqueueInvoiceEmail(ws.rc, ws.publisher, models.EmailTemplateInvoicePaid, invoice, string(models.EmailTemplateInvoicePaid)+":"+invoice.ID)
+				}
+
+				amountAfterFee := nombaClient.DeductFee(float64(planVersion.Amount) / 100)
+
+				_, err = settlementRepository.Create(&models.Settlement{
+					TenantID:       tenantId,
+					Purpose:        initiation.Purpose,
+					Amount:         amountAfterFee,
+					Currency:       planVersion.Currency,
+					Status:         models.SettlementStatusPending,
+					Reference:      initiation.Reference,
+					SettlementTime: time.Now().Add(25 * time.Hour),
+					InvoiceID:      &invoiceId,
+					SubscriptionID: &subscriptionId,
+				}, trx)
+				if err != nil {
+					return err
+				}
+			}
+
+			initiation.Status = models.NombaInitiationStatusCompleted
+			initiation.NombaTransactionId = &payload.Data.Transaction.TransactionID
+			_, err = initiationRepository.Update(initiation, trx)
+			if err != nil {
+				return err
 			}
 		}
 

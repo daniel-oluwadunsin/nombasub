@@ -29,6 +29,7 @@ type NombaInitiation struct {
 	Status             NombaInitiationStatus  `json:"status" gorm:"column:status;type:varchar(20);not null"`
 	Metadata           map[string]interface{} `json:"metadata" gorm:"column:metadata;type:jsonb;serializer:json"`
 	NombaTransactionId *string                `json:"nombaTransactionId" gorm:"column:nomba_transaction_id;type:varchar(300)"`
+	PaymentIntentId    *string                `json:"paymentIntentId" gorm:"column:payment_intent_id;type:uuid"`
 }
 
 func (NombaInitiation) TableName() string {

@@ -105,7 +105,7 @@ func (s *SettlementService) GetSettlementPayout(tenantID, payoutID string) (*res
 	if err := s.rc.DB.
 		Where("tenant_id = ? AND id = ?", tenantID, payoutID).
 		Preload("Settlements", func(db *gorm.DB) *gorm.DB {
-			return db.Order("created_at DESC")
+			return db.Order("created_at DESC").Preload("Subscription").Preload("Invoice")
 		}).
 		First(&payout).Error; err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "record not found") {

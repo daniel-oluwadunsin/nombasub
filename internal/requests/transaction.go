@@ -27,3 +27,16 @@ type InitializeDirectDebitRequest struct {
 	StartImmediately      bool            `json:"startImmediately"`
 	OrderReference        *string         `json:"orderReference"`
 }
+
+type RefundPaymentOrInvoiceRequest struct {
+	PaymentIntentId *string `json:"paymentIntentId" binding:"required"`
+	InvoiceId       *string `json:"invoiceId" binding:"required"`
+	Reason          *string `json:"reason" binding:"required"`
+}
+
+type RefundsQuery struct {
+	PaginationQuery
+	Search *string `form:"search"`
+	From   *string `form:"from"`
+	To     *string `form:"to"`
+}

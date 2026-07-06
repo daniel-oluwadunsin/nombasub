@@ -330,6 +330,22 @@ func (s *InvoiceService) chargeCard(invoice *models.Invoice, subscription *model
 		"nombaSubInvoiceId":       invoice.ID,
 		"nombaSubSubscriptionId":  subscription.ID,
 		"nombaSubTenantAccountId": tenant.AccountID,
+		"nombaSubPaymentSourceId": paymentSource.ID,
+	}
+
+	initiation, err := s.rc.NombaInitiationRepository.Create(&models.NombaInitiation{
+		TenantID:  subscription.TenantID,
+		Amount:    float64(invoice.AmountDue),
+		Currency:  invoice.Currency,
+		Reference: reference,
+		Purpose:   models.NombaInitiationPurposeChargeCardPayment,
+		Status:    models.NombaInitiationStatusPending,
+		Metadata:  metadata,
+	}, nil)
+	if err != nil {
+		initiation.Status = models.NombaInitiationStatusFailed
+		s.rc.NombaInitiationRepository.Update(initiation, nil)
+		return err
 	}
 
 	response, err := s.nombaProvider.ChargeCard(nomba.ChargeCardRequest{
@@ -490,6 +506,7 @@ func (s *InvoiceService) chargeDirectDebit(invoice *models.Invoice, subscription
 			"nombaSubSubscriptionId": subscription.ID,
 			"nombaSubInvoiceId":      invoice.ID,
 		},
+		PaymentIntentId: &paymentIntent.ID,
 	}, nil)
 	if err != nil {
 		return err

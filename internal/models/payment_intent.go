@@ -27,6 +27,7 @@ type PaymentIntent struct {
 	IdempotencyKey                     *string                 `gorm:"column:idempotency_key;type:text;" json:"idempotencyKey"`
 	ProviderResponse                   *string                 `gorm:"column:provider_response;type:text;" json:"providerResponse"`
 	ProviderTransactionID              *string                 `gorm:"column:provider_transaction_id;type:text;" json:"providerTransactionId"`
+	ProviderOrderID                    *string                 `gorm:"column:provider_order_id;type:text;" json:"providerOrderId"`
 	ProviderTransactionReference       *string                 `gorm:"column:provider_transaction_reference;type:text;" json:"providerTransactionReference"`
 	ProviderRefundTransactionID        *string                 `gorm:"column:provider_refund_transaction_id;type:text;" json:"providerRefundTransactionId"`
 	ProviderRefundTransactionReference *string                 `gorm:"column:provider_refund_transaction_reference;type:text;" json:"providerRefundTransactionReference"`
@@ -38,6 +39,11 @@ type PaymentIntent struct {
 	CompletedAt                        *time.Time              `gorm:"column:completed_at;type:timestamp;" json:"completedAt"`
 	FailedAt                           *time.Time              `gorm:"column:failed_at;type:timestamp;" json:"failedAt"`
 	Purpose                            *NombaInitiationPurpose `gorm:"column:purpose;type:string" json:"purpose"`
+
+	PaymentSource *PaymentSource `gorm:"foreignKey:PaymentSourceID;references:ID" json:"paymentSource"`
+	Subscription  *Subscription  `gorm:"foreignKey:SubscriptionID;references:ID" json:"subscription"`
+	Invoice       *Invoice       `gorm:"foreignKey:InvoiceID;references:ID" json:"invoice"`
+	Plan          *Plan          `gorm:"foreignKey:PlanID;references:ID" json:"plan"`
 }
 
 func (PaymentIntent) TableName() string {

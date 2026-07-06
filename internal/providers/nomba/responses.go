@@ -38,6 +38,9 @@ type GetDirectDebitManadateResponse = Response[struct {
 	MandateAdviceStatus   string        `json:"mandateAdviceStatus"`
 }]
 
+type RequestRefundResponse = Response[struct {
+}]
+
 type TransferToAccountResponse = Response[struct {
 	ID               *string        `json:"id"`
 	Status           TransferStatus `json:"status"`
@@ -73,10 +76,10 @@ type TransferToAccountResponse = Response[struct {
 }]
 
 type DebitMandateResponse = Response[struct {
-	MandateId string `json:"mandateId"`
-	Status    string `json:"status"`
+	MandateId string  `json:"mandateId"`
+	Status    string  `json:"status"`
 	Amount    float64 `json:"amount"`
-	Message   string `json:"message"`
+	Message   string  `json:"message"`
 }]
 
 type DirectDebitStatusItem struct {

@@ -47,3 +47,39 @@ func (h *Handler) InitializeCardTransaction(ctx *gin.Context) {
 
 	responses.Success(ctx, http.StatusOK, "Transaction initialized successfully", response.Data)
 }
+
+func (h *Handler) RefundPaymentOrInvoice(ctx *gin.Context) {
+	var body requests.RefundPaymentOrInvoiceRequest
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		responses.Error(ctx, responses.BadRequest(err.Error()))
+		return
+	}
+
+	tenantId := ctx.GetString(middleware.TenantIdCtxKey)
+
+	if err := h.sc.TransactionService.RefundPaymentOrInvoice(tenantId, body); err != nil {
+		responses.Error(ctx, err)
+		return
+	}
+
+	responses.SuccessEmpty(ctx, http.StatusOK, "Refund processed successfully")
+}
+
+func (h *Handler) GetRefunds(ctx *gin.Context) {
+	tenantId := ctx.GetString(middleware.TenantIdCtxKey)
+	var query requests.RefundsQuery
+
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		responses.Error(ctx, responses.BadRequest(err.Error()))
+		return
+	}
+
+	refunds, err := h.sc.TransactionService.GetRefunds(tenantId, query)
+	if err != nil {
+		responses.Error(ctx, err)
+		return
+	}
+
+	responses.Success(ctx, http.StatusOK, "Refunds retrieved successfully", refunds)
+}
