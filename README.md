@@ -16,6 +16,7 @@ The service is designed as a backend API. It exposes REST endpoints through Gin,
 - [Running with Docker](#running-with-docker)
 - [API Authentication](#api-authentication)
 - [API Reference](#api-reference)
+- [AI Access via MCP](#ai-access-via-mcp)
 - [Billing and Subscription Lifecycle](#billing-and-subscription-lifecycle)
 - [Webhooks](#webhooks)
 - [Email Notifications](#email-notifications)
@@ -40,12 +41,15 @@ The service is designed as a backend API. It exposes REST endpoints through Gin,
 - **Outbound webhooks:** persist tenant webhook deliveries, sign outgoing events, retry delivery, and record delivery attempts.
 - **Email notifications:** enqueue and send customer emails for subscription, trial, invoice, payment, checkout, card-expiry, and paused-subscription events.
 - **Settlements:** group pending settlement records by tenant and currency, transfer funds to tenant Nomba accounts, and emit settlement events.
+- **AI-native access:** a companion MCP (Model Context Protocol) server exposes the REST API to AI clients (Claude, Cursor, Codex, ChatGPT connectors) as typed tools, resources, and reusable prompts — with API-key pass-through, per-key rate limiting, and structured error envelopes.
 
 ## System Architecture
 
 ```mermaid
 flowchart LR
     Client["Tenant / Merchant Backend"] --> API["Gin HTTP API"]
+    AI["AI Clients<br/>(Claude, Cursor, Codex, ChatGPT)"] --> MCP["MCP Server<br/>(cmd/mcp)"]
+    MCP -- "X-Api-Key relay" --> API
     Nomba["Nomba APIs and Webhooks"] --> API
 
     API --> Services["Service Layer"]
@@ -158,6 +162,9 @@ The current application expects the following variables:
 | `NOMBA_SENDER_NAME` | No | `NombaSub Platform` | Sender name used for settlement transfers. |
 | `MAILER_USER` | Yes | None | Gmail SMTP username/from address. |
 | `MAILER_PASSWORD` | Yes | None | Gmail SMTP app password. |
+| `MCP_PORT` | No | `8081` | HTTP port for the companion MCP server (`cmd/mcp`). |
+| `NOMBASUB_ENGINE_URL` | No | `http://localhost:8080` | Base URL the MCP server uses to reach this API. |
+| `MCP_RATE_LIMIT_PER_MINUTE` | No | `120` | Per-API-key request budget enforced by the MCP server. |
 
 Generate a valid encryption key with:
 
@@ -661,6 +668,96 @@ Consumes Nomba webhook events. Currently handled events:
 - `payout_refund` is accepted but not implemented.
 
 For successful online checkout subscription payments, the service stores tokenized card data, creates or updates subscriptions and invoices, creates successful payment intents, records settlements, sends customer emails, and emits tenant webhook events.
+
+## AI Access via MCP
+
+NombaSub ships with a companion Model Context Protocol (MCP) server at `cmd/mcp` that lets AI assistants — Claude Desktop, Cursor, Codex, ChatGPT connectors, or any MCP-aware client — query and operate the subscription engine using structured tools instead of raw HTTP calls.
+
+The MCP server is a **thin translation layer**. It holds no business logic of its own; every tool call is forwarded to the existing REST API using the merchant's API key, so all tenant isolation, validation, and side effects continue to run through the engine's middleware and services.
+
+### Design
+
+- Separate binary (`cmd/mcp`) sharing the same Go module. One repo, one deploy pipeline.
+- Streamable HTTP transport on `MCP_PORT` (default `8081`).
+- Authentication: the AI client sends `X-Api-Key: <merchant key>`. The MCP server relays that key to the engine unchanged. Requests missing the header are rejected at the HTTP layer with `401 unauthorized` before any tool logic runs.
+- Rate limiting: token-bucket, per API key. Default 120 req/min, tunable via `MCP_RATE_LIMIT_PER_MINUTE`. Exceeded budgets return `429` with `Retry-After`.
+- Errors returned to tools are structured as `{code, message, retryable}` so AI clients can distinguish `invalid_input` (never retry) from `engine_error` (safe to retry).
+- Health probe at `GET /health` bypasses auth for load balancers.
+
+### Running
+
+```bash
+# terminal 1: the engine
+go run ./cmd/api
+
+# terminal 2: the MCP server
+go run ./cmd/mcp
+```
+
+Both boot from the same `.env`. Point your MCP client at `http://<host>:8081/mcp` with header `X-Api-Key: <your merchant key>`.
+
+### Tools
+
+Fifteen tools grouped by intent. Each carries MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`) so clients can gate confirmation UX correctly.
+
+| Category | Tool | Engine endpoint | Notes |
+| --- | --- | --- | --- |
+| Query | `get_customers` | `GET /v1/customer/` | Filter by search, date range, pagination. |
+| Query | `get_subscriptions` | `GET /v1/subscription/` | Filter by customer, plan, search. |
+| Query | `get_invoices` | `GET /v1/invoice/` | Filter by status (`draft`, `open`, `paid`, `failed`, `refunded`). |
+| Query | `get_plans` | `GET /v1/plan/` | Filter by status, interval, amount, date range. |
+| Query | `get_payment_attempts` | `GET /v1/checkout/payment-attempts` | Per-attempt log with provider reference and failure reason. |
+| Query | `get_webhook_deliveries` | `GET /v1/webhook-deliveries/` | Filter by status, event type, date. |
+| Analytics | `compute_metric` | `GET /v1/dashboard/analytics` | Names: `mrr`, `arr`, `revenue`, `arpu`, `churn_rate`, etc. |
+| Analytics | `compare_periods` | `GET /v1/dashboard/analytics` × 2 | Δ + % change across two windows (presets or explicit dates). |
+| Analytics | `explain_metric_change` | `GET /v1/dashboard/analytics` | Current + previous + matching AI-insights + supporting signals. |
+| Action | `retry_payment` | `POST /v1/invoice/:id/retry` | Destructive. Supports `dry_run: true`. |
+| Action | `cancel_subscription` | `POST /v1/subscription/:id/cancel` | Destructive. Supports `dry_run: true`. |
+| Action | `create_portal_link` | `POST /v1/subscription/:id/checkout-link` | Optionally emails the link. |
+| Action | `send_dunning_reminder` | `POST /v1/invoice/:id/send-reminder` | Generates a link if missing; sends the checkout email. |
+| Report | `generate_business_report` | analytics + orchestration | Markdown executive summary. |
+| Report | `generate_dunning_report` | analytics + orchestration | Markdown recovery report with recommended tool calls. |
+
+### Resources
+
+Read-only URIs an AI client can browse without invoking a tool.
+
+| URI | Contents |
+| --- | --- |
+| `plans://all` | Every billing plan on the merchant account. |
+| `subscriptions://active` | Subscriptions currently in the active state. |
+| `analytics://summary` | Full dashboard analytics response for the current billing month. |
+| `events://recent` | Most recent outbound webhook deliveries. |
+| `customers://{emailOrCode}` | Per-customer profile, subscriptions, and payment sources (template). |
+
+### Prompts
+
+Reusable prompt templates that guide an AI client through multi-step workflows using the tools above.
+
+| Prompt | Purpose |
+| --- | --- |
+| `monthly_business_review` | Orchestrates `generate_business_report`, `explain_metric_change`, `compare_periods`, and (conditionally) `generate_dunning_report` into a Markdown review. Optional `focus` argument. |
+| `subscription_health_check` | Walks the assistant through churn/at-risk analysis and ends with per-customer action recommendations by tool name. Optional `customer` argument. |
+
+### Example: end-to-end from Claude Desktop
+
+Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "nombasub": {
+      "transport": {
+        "type": "streamable-http",
+        "url": "http://localhost:8081/mcp",
+        "headers": { "X-Api-Key": "<your merchant api key>" }
+      }
+    }
+  }
+}
+```
+
+Then in a chat: "Give me this month's business review" invokes the `monthly_business_review` prompt, which in turn calls `generate_business_report`, `compare_periods`, and `explain_metric_change` — and returns a Markdown summary.
 
 ## Billing and Subscription Lifecycle
 
