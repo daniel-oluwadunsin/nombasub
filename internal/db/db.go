@@ -9,6 +9,7 @@ import (
 
 func Connect(cfg *config.Config) (*gorm.DB, error) {
 	return gorm.Open(postgres.Open(cfg.DBDSN), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger:                                   logger.Default.LogMode(logger.Info),
+		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 }
