@@ -14,6 +14,7 @@ The service is designed as a backend API. It exposes REST endpoints through Gin,
 - [Configuration](#configuration)
 - [Getting Started](#getting-started)
 - [Running with Docker](#running-with-docker)
+- [Production Deployment (Coolify on EC2)](#production-deployment-coolify-on-ec2)
 - [API Authentication](#api-authentication)
 - [API Reference](#api-reference)
 - [AI Access via MCP](#ai-access-via-mcp)
@@ -44,6 +45,8 @@ The service is designed as a backend API. It exposes REST endpoints through Gin,
 - **AI-native access:** a companion MCP (Model Context Protocol) server exposes the REST API to AI clients (Claude, Cursor, Codex, ChatGPT connectors) as typed tools, resources, and reusable prompts — with API-key pass-through, per-key rate limiting, and structured error envelopes.
 
 ## System Architecture
+
+The diagram below shows the logical service graph. For the deployed topology (Coolify, Traefik, containers on a single EC2 host), see [Production Deployment](#production-deployment-coolify-on-ec2).
 
 ```mermaid
 flowchart LR
@@ -269,6 +272,56 @@ The included `Dockerfile` uses a multi-stage build:
 
 - `golang:alpine` builds the static API binary.
 - `alpine:3.20` runs the final binary with CA certificates and timezone data.
+
+## Production Deployment (Coolify on EC2)
+
+The reference production topology is a single-node [Coolify](https://coolify.io) installation on an EC2 instance, with a Docker Compose stack (`docker-compose.yml` at the repo root) that runs the API, the MCP server, PostgreSQL, and RabbitMQ side by side. Coolify's bundled Traefik terminates TLS on `:443` and routes public traffic to the right container over the internal Docker network; Cloudflare handles DNS.
+
+### Deployed topology
+
+```mermaid
+flowchart LR
+    Merchants["Merchant backends<br/>Nomba webhooks"] -- HTTPS --> CF
+    AI["AI clients<br/>(Claude, Cursor, Codex)"] -- HTTPS --> CF
+
+    CF["Cloudflare DNS<br/>(A records, DNS-only)"] --> Traefik
+
+    subgraph EC2["EC2 host — Coolify"]
+        Traefik["Traefik<br/>:80 / :443<br/>Let's Encrypt"]
+        subgraph Compose["docker-compose stack"]
+            api["api container<br/>:8080"]
+            mcp["mcp container<br/>:8081"]
+            pg[("postgres:16<br/>postgres_data volume")]
+            mq["rabbitmq:3.13<br/>rabbitmq_data volume"]
+        end
+        Traefik -->|SERVICE_FQDN_API| api
+        Traefik -->|SERVICE_FQDN_MCP| mcp
+        api --> pg
+        api --> mq
+        mcp -->|internal http| api
+    end
+```
+
+### Infrastructure summary
+
+| Component | Runs as | Purpose |
+| --- | --- | --- |
+| EC2 instance | single host | Runs Docker, Coolify, and every container in this stack. |
+| Coolify | host-level service | Deploys the stack from GitHub, manages env vars, exposes a UI for logs/redeploys. |
+| Traefik | container (bundled with Coolify) | Reverse proxy on `:80`/`:443`, issues and renews Let's Encrypt certs via HTTP-01, routes by `SERVICE_FQDN_*`. |
+| `api` | container (`cmd/api`) | Gin HTTP server on internal `:8080`. Reached publicly via `SERVICE_FQDN_API`. |
+| `mcp` | container (`cmd/mcp`) | MCP server on internal `:8081`. Reached publicly via `SERVICE_FQDN_MCP`. Talks to `api` over `http://api:8080`. |
+| `postgres` | container (`postgres:16-alpine`) | Application database. State on the `postgres_data` named volume. Not exposed publicly. |
+| `rabbitmq` | container (`rabbitmq:3.13-management-alpine`) | Async job queues for tenant webhooks and email delivery. State on the `rabbitmq_data` named volume. Not exposed publicly. |
+| Cloudflare | external DNS | A records for the two public subdomains, DNS-only (grey cloud) so Let's Encrypt HTTP-01 works. |
+
+### Deployment flow
+
+1. `git push origin main`.
+2. GitHub webhook triggers Coolify.
+3. Coolify clones the repo into a build container, injects every env var declared in its UI as a Docker build ARG.
+4. `docker compose build` runs the multi-stage `Dockerfile`, producing one image containing both `/app/api` and `/app/mcp`.
+5. `docker compose up -d` recreates the stack. Traefik picks up the new container endpoints automatically; the old containers are stopped once the new ones pass their healthchecks.
 
 ## API Authentication
 
