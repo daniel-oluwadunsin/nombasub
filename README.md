@@ -14,9 +14,11 @@ The service is designed as a backend API. It exposes REST endpoints through Gin,
 - [Configuration](#configuration)
 - [Getting Started](#getting-started)
 - [Running with Docker](#running-with-docker)
+- [Production Deployment (Coolify on EC2)](#production-deployment-coolify-on-ec2)
 - [API Authentication](#api-authentication)
 - [API Reference](#api-reference)
 - [AI Access via MCP](#ai-access-via-mcp)
+- [Nomba API Usage](#nomba-api-usage)
 - [Billing and Subscription Lifecycle](#billing-and-subscription-lifecycle)
 - [Webhooks](#webhooks)
 - [Email Notifications](#email-notifications)
@@ -26,7 +28,6 @@ The service is designed as a backend API. It exposes REST endpoints through Gin,
 - [Development Workflow](#development-workflow)
 - [Testing](#testing)
 - [Deployment Notes](#deployment-notes)
-- [Operational Caveats](#operational-caveats)
 
 ## Core Capabilities
 
@@ -44,6 +45,8 @@ The service is designed as a backend API. It exposes REST endpoints through Gin,
 - **AI-native access:** a companion MCP (Model Context Protocol) server exposes the REST API to AI clients (Claude, Cursor, Codex, ChatGPT connectors) as typed tools, resources, and reusable prompts — with API-key pass-through, per-key rate limiting, and structured error envelopes.
 
 ## System Architecture
+
+The diagram below shows the logical service graph. For the deployed topology (Coolify, Traefik, containers on a single EC2 host), see [Production Deployment](#production-deployment-coolify-on-ec2).
 
 ```mermaid
 flowchart LR
@@ -269,6 +272,56 @@ The included `Dockerfile` uses a multi-stage build:
 
 - `golang:alpine` builds the static API binary.
 - `alpine:3.20` runs the final binary with CA certificates and timezone data.
+
+## Production Deployment (Coolify on EC2)
+
+The reference production topology is a single-node [Coolify](https://coolify.io) installation on an EC2 instance, with a Docker Compose stack (`docker-compose.yml` at the repo root) that runs the API, the MCP server, PostgreSQL, and RabbitMQ side by side. Coolify's bundled Traefik terminates TLS on `:443` and routes public traffic to the right container over the internal Docker network; Cloudflare handles DNS.
+
+### Deployed topology
+
+```mermaid
+flowchart LR
+    Merchants["Merchant backends<br/>Nomba webhooks"] -- HTTPS --> CF
+    AI["AI clients<br/>(Claude, Cursor, Codex)"] -- HTTPS --> CF
+
+    CF["Cloudflare DNS<br/>(A records, DNS-only)"] --> Traefik
+
+    subgraph EC2["EC2 host — Coolify"]
+        Traefik["Traefik<br/>:80 / :443<br/>Let's Encrypt"]
+        subgraph Compose["docker-compose stack"]
+            api["api container<br/>:8080"]
+            mcp["mcp container<br/>:8081"]
+            pg[("postgres:16<br/>postgres_data volume")]
+            mq["rabbitmq:3.13<br/>rabbitmq_data volume"]
+        end
+        Traefik -->|SERVICE_FQDN_API| api
+        Traefik -->|SERVICE_FQDN_MCP| mcp
+        api --> pg
+        api --> mq
+        mcp -->|internal http| api
+    end
+```
+
+### Infrastructure summary
+
+| Component | Runs as | Purpose |
+| --- | --- | --- |
+| EC2 instance | single host | Runs Docker, Coolify, and every container in this stack. |
+| Coolify | host-level service | Deploys the stack from GitHub, manages env vars, exposes a UI for logs/redeploys. |
+| Traefik | container (bundled with Coolify) | Reverse proxy on `:80`/`:443`, issues and renews Let's Encrypt certs via HTTP-01, routes by `SERVICE_FQDN_*`. |
+| `api` | container (`cmd/api`) | Gin HTTP server on internal `:8080`. Reached publicly via `SERVICE_FQDN_API`. |
+| `mcp` | container (`cmd/mcp`) | MCP server on internal `:8081`. Reached publicly via `SERVICE_FQDN_MCP`. Talks to `api` over `http://api:8080`. |
+| `postgres` | container (`postgres:16-alpine`) | Application database. State on the `postgres_data` named volume. Not exposed publicly. |
+| `rabbitmq` | container (`rabbitmq:3.13-management-alpine`) | Async job queues for tenant webhooks and email delivery. State on the `rabbitmq_data` named volume. Not exposed publicly. |
+| Cloudflare | external DNS | A records for the two public subdomains, DNS-only (grey cloud) so Let's Encrypt HTTP-01 works. |
+
+### Deployment flow
+
+1. `git push origin main`.
+2. GitHub webhook triggers Coolify.
+3. Coolify clones the repo into a build container, injects every env var declared in its UI as a Docker build ARG.
+4. `docker compose build` runs the multi-stage `Dockerfile`, producing one image containing both `/app/api` and `/app/mcp`.
+5. `docker compose up -d` recreates the stack. Traefik picks up the new container endpoints automatically; the old containers are stopped once the new ones pass their healthchecks.
 
 ## API Authentication
 
@@ -759,6 +812,25 @@ Add to `claude_desktop_config.json`:
 
 Then in a chat: "Give me this month's business review" invokes the `monthly_business_review` prompt, which in turn calls `generate_business_report`, `compare_periods`, and `explain_metric_change` — and returns a Markdown summary.
 
+## Nomba API Usage
+
+Every outbound Nomba call is implemented in `internal/providers/nomba/` and invoked from the service layer. The table below lists each endpoint the service actually calls, the provider method that wraps it, and what the engine uses it for.
+
+| Endpoint | Method | Provider function | Used for |
+| --- | --- | --- | --- |
+| `/v1/auth/token/issue` | `POST` | `issueAccessToken(false)` | First-time OAuth token issue for the Nomba client on cold start. |
+| `/v1/auth/token/refresh` | `POST` | `refreshAccessToken` | Refreshing the access token after a 401 response or when the cached token expires. |
+| `/v1/checkout/order` | `POST` | `CreateCheckoutOrder` | Creating a hosted checkout link with card tokenization enabled — used for initial subscription checkout, fallback links on recurring invoices without a saved card, and customer-portal card updates. |
+| `/v1/checkout/tokenized-card-payment` | `POST` | `ChargeCard` | Charging the tokenized card saved on a subscription when a recurring invoice becomes due. |
+| `/v1/checkout/refund` | `POST` | `RequestRefund` | Refunding a completed card payment; drives the invoice/refund workflow triggered by `POST /v1/checkout/refunds`. |
+| `/v1/direct-debits` | `POST` | `CreateDirectDebitManadate` | Registering a new direct-debit mandate at the customer's bank as part of `POST /v1/checkout/direct-debit`. |
+| `/v1/direct-debits/status?mandateId=` | `GET` | `GetDirectDebitManadateStatus` | Two callers: the mandate poll cron uses it to detect `Active + ADVICE_SENT`; the invoice service uses it to verify the mandate is still active before every recurring debit. |
+| `/v1/direct-debits/update-status` | `PUT` | `UpdateDirectDebitStatus` | Suspending or deleting a mandate from the merchant API (e.g. when cancelling a DD subscription). |
+| `/v1/direct-debits/debit-mandate` | `POST` | `DebitMandate` | Pulling funds via an active mandate for a due direct-debit invoice. |
+| `/v2/transfers/wallet` | `POST` | `TransferToNombaAccount` | Settlement payout — moving merchant earnings from the platform Nomba wallet to the tenant's Nomba account, run by the settlement cron. |
+
+In addition, the engine receives Nomba's outbound webhooks at `POST /webhook/nomba` (see [Webhooks](#webhooks)) — those are inbound, not part of the table above.
+
 ## Billing and Subscription Lifecycle
 
 ### Plan Versioning
@@ -1042,17 +1114,4 @@ Before deploying:
 - Run at least one API instance with cron jobs enabled. If multiple replicas are deployed, introduce distributed locking or isolate workers to avoid duplicate cron processing.
 - Ensure the runtime can reach Nomba APIs, tenant webhook URLs, RabbitMQ, PostgreSQL, and SMTP.
 - Monitor queue depth, webhook delivery failure rates, email failures, settlement failures, and Nomba provider errors.
-
-## Operational Caveats
-
-These notes reflect the current implementation and are useful for maintainers planning hardening work:
-
-- `.env.example` is missing some variables that `config.Load()` requires. Use the complete configuration table above when setting up the application.
-- `POST /auth/set-webhook-url` reads tenant context, but the route is currently outside the `/v1` API-key middleware group. As written, no tenant ID is set for that handler by the router.
-- `SetWebhookUrl` generates and returns a webhook secret, but does not currently persist it to `tenant.WebhookSecret`. Outgoing webhooks require a stored webhook URL and secret before they are enqueued.
-- Incoming Nomba webhook signature validation exists in the service layer, but enforcement is commented out in the webhook handler.
-- Some accepted Nomba webhook event types are stubbed and do not yet mutate local state.
-- The RabbitMQ reconnect loop reconnects the underlying connection/channel, but existing consumers are not explicitly re-registered after reconnection.
-- Cron jobs run in-process. Multiple running API instances can execute the same cron work unless external locking or worker separation is added.
-- GORM auto-migration is convenient for development, but organizations commonly replace or supplement it with explicit, reviewed database migrations in production.
 

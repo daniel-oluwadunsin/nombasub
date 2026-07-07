@@ -36,19 +36,29 @@ type TransferToAccountRequest struct {
 	SenderName        string  `json:"senderName" binding:"required"`
 }
 
+// LocalDateTime marshals a Go time.Time in the minute-precision local form
+// Nomba uses for java.time.LocalDateTime fields, e.g. "2025-08-29T15:30".
+// No seconds, no timezone offset — matches the shape shown in Nomba's docs.
+type LocalDateTime time.Time
+
+func (l LocalDateTime) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + time.Time(l).Format("2006-01-02T15:04") + `"`), nil
+}
+
 type CreateDirectDebitManadateRequest struct {
-	CustomerAccountNumber string    `json:"customerAccountNumber" binding:"required"`
-	BankCode              string    `json:"bankCode" binding:"required"`
-	CustomerName          string    `json:"customerName" binding:"required"`
-	CustomerAddress       string    `json:"customerAddress" binding:"required"`
-	CustomerAccountName   string    `json:"customerAccountName" binding:"required"`
-	Frequency             Frequency `json:"frequency" binding:"required,oneof=VARIABLE WEEKLY MONTHLY QUARTERLY EVERY_TWO_MONTHS EVERY_THREE_MONTHS EVERY_FOUR_MONTHS EVERY_FIVE_MONTHS EVERY_SIX_MONTHS EVERY_SEVEN_MONTHS EVERY_EIGHT_MONTHS EVERY_NINE_MONTHS EVERY_TEN_MONTHS EVERY_ELEVEN_MONTHS EVERY_TWELVE_MONTHS"`
-	Narration             string    `json:"narration" binding:"required"`
-	CustomerPhoneNumber   string    `json:"customerPhoneNumber" binding:"required"`
-	MerchantReference     string    `json:"merchantReference" binding:"required"`
-	StartDate             time.Time `json:"startDate" binding:"required"`
-	EndDate               time.Time `json:"endDate" binding:"required"`
-	StartImmediately      bool      `json:"startImmediately" binding:"required"`
+	CustomerAccountNumber string        `json:"customerAccountNumber" binding:"required"`
+	BankCode              string        `json:"bankCode" binding:"required"`
+	CustomerName          string        `json:"customerName" binding:"required"`
+	CustomerAddress       string        `json:"customerAddress" binding:"required"`
+	CustomerAccountName   string        `json:"customerAccountName" binding:"required"`
+	CustomerEmail         string        `json:"customerEmail" binding:"required"`
+	Frequency             Frequency     `json:"frequency" binding:"required,oneof=VARIABLE WEEKLY MONTHLY QUARTERLY EVERY_TWO_MONTHS EVERY_THREE_MONTHS EVERY_FOUR_MONTHS EVERY_FIVE_MONTHS EVERY_SIX_MONTHS EVERY_SEVEN_MONTHS EVERY_EIGHT_MONTHS EVERY_NINE_MONTHS EVERY_TEN_MONTHS EVERY_ELEVEN_MONTHS EVERY_TWELVE_MONTHS"`
+	Narration             string        `json:"narration" binding:"required"`
+	CustomerPhoneNumber   string        `json:"customerPhoneNumber" binding:"required"`
+	MerchantReference     string        `json:"merchantReference" binding:"required"`
+	StartDate             LocalDateTime `json:"startDate" binding:"required"`
+	EndDate               LocalDateTime `json:"endDate" binding:"required"`
+	StartImmediately      bool          `json:"startImmediately" binding:"required"`
 }
 
 type DebitMandateRequest struct {

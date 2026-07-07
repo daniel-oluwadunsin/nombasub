@@ -1,0 +1,25 @@
+.env
+.env.*
+!.env.example
+
+.git
+.github
+.gitignore
+
+# Local build artifacts and IDE noise
+tmp/
+bin/
+*.log
+*.out
+.DS_Store
+.idea/
+.vscode/
+
+# Test fixtures / coverage
+coverage.out
+*.test
+
+# Never bake claude-code project state into images
+.claude/
+
+README.md

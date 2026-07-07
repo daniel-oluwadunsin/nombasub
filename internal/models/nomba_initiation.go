@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 type NombaInitiationPurpose string
 
 const (
@@ -31,6 +33,10 @@ type NombaInitiation struct {
 	Metadata           map[string]interface{} `json:"metadata" gorm:"column:metadata;type:jsonb;serializer:json"`
 	NombaTransactionId *string                `json:"nombaTransactionId" gorm:"column:nomba_transaction_id;type:varchar(300)"`
 	PaymentIntentId    *string                `json:"paymentIntentId" gorm:"column:payment_intent_id;type:uuid"`
+
+	// Bookkeeping for the per-mandate exponential backoff in PollPendingMandates.
+	LastPolledAt *time.Time `json:"lastPolledAt" gorm:"column:last_polled_at;type:timestamp"`
+	PollAttempts int        `json:"pollAttempts" gorm:"column:poll_attempts;type:int;not null;default:0"`
 }
 
 func (NombaInitiation) TableName() string {

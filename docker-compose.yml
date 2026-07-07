@@ -1,0 +1,93 @@
+# Coolify will pick this file up as a "Docker Compose" application. Every value
+# referenced with ${VAR} must be set in Coolify's UI as an application env var.
+# Locally, put them in a .env next to this file.
+
+services:
+  api:
+    build: .
+    image: nombasub:latest
+    command: ["/app/api"]
+    restart: unless-stopped
+    expose:
+      - "8080"
+    environment:
+      PORT: "8080"
+      DB_DSN: "postgres://nombasub:${POSTGRES_PASSWORD}@postgres:5432/nombasub?sslmode=disable"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+      JWT_SECRET: "${JWT_SECRET}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET}"
+      API_KEY_HEADER: "X-Api-Key"
+      ENCRYPTION_KEY: "${ENCRYPTION_KEY}"
+      NOMBA_CLIENT_ID: "${NOMBA_CLIENT_ID}"
+      NOMBA_CLIENT_SECRET: "${NOMBA_CLIENT_SECRET}"
+      NOMBA_BASE_URL: "${NOMBA_BASE_URL:-https://api.nomba.com}"
+      NOMBA_ACCOUNT_ID: "${NOMBA_ACCOUNT_ID}"
+      NOMBA_SUBACCOUNT_ID: "${NOMBA_SUBACCOUNT_ID}"
+      NOMBA_WEBHOOK_SECRET: "${NOMBA_WEBHOOK_SECRET}"
+      NOMBA_SENDER_NAME: "${NOMBA_SENDER_NAME:-NombaSub Platform}"
+      MAILER_USER: "${MAILER_USER}"
+      MAILER_PASSWORD: "${MAILER_PASSWORD}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  mcp:
+    build: .
+    image: nombasub:latest
+    command: ["/app/mcp"]
+    restart: unless-stopped
+    expose:
+      - "8081"
+    environment:
+      MCP_PORT: "8081"
+      NOMBASUB_ENGINE_URL: "http://api:8080"
+      MCP_RATE_LIMIT_PER_MINUTE: "${MCP_RATE_LIMIT_PER_MINUTE:-120}"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nombasub
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: nombasub
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nombasub -d nombasub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    expose:
+      - "5672"
+      - "15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  postgres_data:
+  rabbitmq_data:

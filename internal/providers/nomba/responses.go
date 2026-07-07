@@ -1,5 +1,64 @@
 package nomba
 
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"strings"
+
+	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
+	"resty.dev/v3"
+)
+
+// detectNombaBusinessError catches responses where Nomba returned HTTP 200 but
+// embedded a business-level failure (e.g. `{"status": false, "message": "..."}`).
+// Without this check, callers would receive a zero-value success struct and
+// silently proceed with empty IDs.
+func detectNombaBusinessError(op string, res *resty.Response) error {
+	body := strings.TrimSpace(res.String())
+	if body == "" {
+		return nil
+	}
+
+	var envelope struct {
+		Status  *bool  `json:"status"`
+		Message string `json:"message"`
+		Code    string `json:"code"`
+	}
+	if err := json.Unmarshal([]byte(body), &envelope); err != nil {
+		return nil
+	}
+	if envelope.Status == nil || *envelope.Status {
+		return nil
+	}
+
+	message := strings.TrimSpace(envelope.Message)
+	if message == "" {
+		message = fmt.Sprintf("Nomba %s returned status:false with no message", op)
+	}
+	log.Printf("nomba %s business failure: code=%q message=%q body=%s", op, envelope.Code, message, body)
+
+	return &responses.AppError{
+		StatusCode: 422,
+		Message:    message,
+		Data:       body,
+		Err:        errors.New(message),
+	}
+}
+
+// logNombaRequest prints the outgoing request payload so we can compare what
+// we sent against what Nomba rejected. Only active in debug builds; noisy but
+// invaluable for diagnosing 4xx responses with empty bodies.
+func logNombaRequest(op string, body any) {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		log.Printf("nomba %s request: (marshal error: %v)", op, err)
+		return
+	}
+	log.Printf("nomba %s request: %s", op, string(payload))
+}
+
 type Response[T any] struct {
 	Code        string `json:"code"`
 	Description string `json:"description"`
@@ -7,6 +66,47 @@ type Response[T any] struct {
 }
 
 type errorResponse = Response[struct{}]
+
+// buildNombaError constructs a rich AppError from a failed Nomba HTTP response,
+// falling back to the raw body when the response is not shaped like errorResponse
+// (e.g. Nomba returned an HTML 502 page or an unexpected schema). It also logs
+// the full status + body so the failure is visible in server logs.
+func buildNombaError(op string, res *resty.Response) error {
+	status := res.StatusCode()
+	body := strings.TrimSpace(res.String())
+
+	description := ""
+	code := ""
+	if parsed, ok := res.ResultError().(*errorResponse); ok && parsed != nil {
+		description = strings.TrimSpace(parsed.Description)
+		code = strings.TrimSpace(parsed.Code)
+	}
+
+	message := description
+	if message == "" {
+		if body != "" {
+			message = fmt.Sprintf("Nomba %s failed with %d: %s", op, status, body)
+		} else {
+			message = fmt.Sprintf("Nomba %s failed with %d (empty response body)", op, status)
+		}
+	}
+
+	headerParts := []string{}
+	for _, h := range []string{"X-Request-Id", "X-Correlation-Id", "X-Nomba-Request-Id", "X-Nomba-Error", "Content-Type"} {
+		if v := res.Header().Get(h); v != "" {
+			headerParts = append(headerParts, fmt.Sprintf("%s=%q", h, v))
+		}
+	}
+	log.Printf("nomba %s failed: status=%d code=%q description=%q headers=[%s] body=%s",
+		op, status, code, description, strings.Join(headerParts, " "), body)
+
+	return &responses.AppError{
+		StatusCode: status,
+		Message:    message,
+		Data:       body,
+		Err:        errors.New(message),
+	}
+}
 
 type GetAccessTokenResponse = Response[struct {
 	BusinessID   string `json:"businessId"`

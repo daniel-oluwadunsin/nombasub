@@ -207,24 +207,31 @@ func (ts *TransactionService) InitializeDirectDebitSubscription(tenantId string,
 			metadata["nombaSubTenantOrderReference"] = *body.OrderReference
 		}
 
+		startDate := body.StartDate
+		if startDate.Before(time.Now()) {
+			startDate = time.Now()
+		}
+
 		nombaResponse, err := nombaProvider.CreateDirectDebitManadate(nomba.CreateDirectDebitManadateRequest{
 			CustomerAccountNumber: body.CustomerAccountNumber,
 			CustomerAccountName:   body.CustomerAccountName,
 			CustomerName:          body.CustomerName,
 			CustomerAddress:       body.CustomerAddress,
+			CustomerEmail:         body.CustomerEmail,
 			BankCode:              body.BankCode,
 			Frequency:             body.Frequency,
 			Narration:             body.Narration,
 			CustomerPhoneNumber:   body.CustomerPhoneNumber,
 			MerchantReference:     merchantReference,
-			StartDate:             body.StartDate,
-			EndDate:               body.EndDate,
+			StartDate:             nomba.LocalDateTime(startDate),
+			EndDate:               nomba.LocalDateTime(body.EndDate),
 			StartImmediately:      body.StartImmediately,
 		})
 		if err != nil {
+			log.Printf("direct debit init: Nomba CreateDirectDebitManadate failed for tenant=%s customer=%s plan=%s bank=%s: %v",
+				tenantId, customer.Code, plan.Code, body.BankCode, err)
 			return responses.InternalServerError(err)
 		}
-		fmt.Println(nombaResponse)
 
 		mandateId := nombaResponse.Data.MandateID
 

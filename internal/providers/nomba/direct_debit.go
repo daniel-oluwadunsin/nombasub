@@ -2,12 +2,14 @@ package nomba
 
 import (
 	"errors"
+	"log"
 
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
 	"resty.dev/v3"
 )
 
 func (c *Client) CreateDirectDebitManadate(body CreateDirectDebitManadateRequest) (*CreateDirectDebitManadateResponse, error) {
+	logNombaRequest("CreateDirectDebitManadate", body)
 	res, err := c.authenticatedRequest(func() *resty.Request {
 		return c.HTTPClient.R().SetBody(body).SetResultError(&errorResponse{}).SetResult(&CreateDirectDebitManadateResponse{})
 	}, resty.MethodPost, "/v1/direct-debits")
@@ -16,15 +18,13 @@ func (c *Client) CreateDirectDebitManadate(body CreateDirectDebitManadateRequest
 		return nil, err
 	}
 	if res.IsStatusFailure() {
-		err := res.ResultError().(*errorResponse)
-		return nil, &responses.AppError{
-			StatusCode: res.StatusCode(),
-			Message:    err.Description,
-			Data:       err.Data,
-			Err:        errors.New(err.Description),
-		}
+		return nil, buildNombaError("CreateDirectDebitManadate", res)
+	}
+	if err := detectNombaBusinessError("CreateDirectDebitManadate", res); err != nil {
+		return nil, err
 	}
 
+	log.Printf("nomba CreateDirectDebitManadate success: %s", res.String())
 	result := res.Result().(*CreateDirectDebitManadateResponse)
 	return result, nil
 }
@@ -84,13 +84,11 @@ func (c *Client) GetDirectDebitManadateStatus(mandateId string) (*GetDirectDebit
 		return nil, err
 	}
 	if res.IsStatusFailure() {
-		err := res.ResultError().(*errorResponse)
-		return nil, &responses.AppError{
-			StatusCode: res.StatusCode(),
-			Message:    err.Description,
-			Data:       err.Data,
-			Err:        errors.New(err.Description),
-		}
+		return nil, buildNombaError("GetDirectDebitManadateStatus", res)
+	}
+	log.Printf("nomba GetDirectDebitManadateStatus mandate=%s raw=%s", mandateId, res.String())
+	if err := detectNombaBusinessError("GetDirectDebitManadateStatus", res); err != nil {
+		return nil, err
 	}
 
 	result := res.Result().(*GetDirectDebitManadateResponse)

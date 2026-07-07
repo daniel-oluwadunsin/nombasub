@@ -43,6 +43,7 @@ func New(env *config.Config) (*Client, error) {
 func (c *Client) setNewHTTPClient() error {
 	c.HTTPClient = resty.New().
 		SetBaseURL(c.BaseURL).
+		SetResponseBodyUnlimitedReads(true).
 		AddRequestMiddleware(func(_ *resty.Client, r *resty.Request) error {
 			accessToken, err := c.ensureAccessToken()
 			if err != nil {
