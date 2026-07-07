@@ -2,6 +2,7 @@ package services
 
 import (
 	"log"
+	"strings"
 	"time"
 
 	"github.com/daniel-oluwadunsin/nombasub/internal/helpers/utils"
@@ -22,40 +23,26 @@ func NewDirectDebitSubscriptionService(rc *repositories.Container, nombaProvider
 	return &DirectDebitSubscriptionService{rc: rc, nombaProvider: nombaProvider, publisher: publisher}
 }
 
-// PollPendingMandates is the cron job that checks mandate status for all pending
-// direct debit initiations and activates the subscription once the mandate is
-// ACTIVE with ADVICE_SENT.
-func (s *DirectDebitSubscriptionService) PollPendingMandates() {
-	initiations, err := s.rc.NombaInitiationRepository.FindManyRaw(&repositories.FindArgs{
-		Filter: repositories.NewQueryFilter().Where(
-			"purpose = ? AND status = ?",
-			models.NombaInitiationPurposeDirectDebitSubscription,
-			models.NombaInitiationStatusPending,
-		),
-	})
-	if err != nil {
-		log.Printf("direct debit poll cron: failed to load pending initiations: %v", err)
-		return
-	}
-
-	for _, initiation := range initiations {
-		if err := s.processPendingMandate(&initiation); err != nil {
-			log.Printf("direct debit poll cron: failed for mandateId=%s: %v", initiation.Reference, err)
-		}
-	}
-}
+// PollPendingMandates is defined in direct_debit_backoff.go. It applies per-
+// mandate exponential backoff so we don't hammer Nomba (or bill our own quota)
+// for mandates a customer hasn't approved yet.
 
 func (s *DirectDebitSubscriptionService) processPendingMandate(initiation *models.NombaInitiation) error {
 	mandateId := initiation.Reference
 
 	statusResp, err := s.nombaProvider.GetDirectDebitManadateStatus(mandateId)
 	if err != nil {
+		log.Printf("direct debit poll: GetDirectDebitManadateStatus failed for mandate=%s: %v", mandateId, err)
 		return err
 	}
 
 	data := statusResp.Data
+	log.Printf("direct debit poll: mandate=%s mandateStatus=%s adviceStatus=%s", mandateId, data.MandateStatus, data.MandateAdviceStatus)
 
-	if data.MandateStatus == nomba.MandateStatusDeleted {
+	// Nomba sometimes returns "Active" / "Deleted" in mixed case, so normalize.
+	normalizedStatus := strings.ToUpper(string(data.MandateStatus))
+
+	if normalizedStatus == string(nomba.MandateStatusDeleted) {
 		initiation.Status = models.NombaInitiationStatusFailed
 		_, err = s.rc.NombaInitiationRepository.Update(initiation, nil)
 		if err != nil {
@@ -71,9 +58,11 @@ func (s *DirectDebitSubscriptionService) processPendingMandate(initiation *model
 		return nil
 	}
 
-	if data.MandateStatus != nomba.MandateStatusActive || data.MandateAdviceStatus != "ADVICE_SENT" {
+	if normalizedStatus != string(nomba.MandateStatusActive) || strings.ToUpper(data.MandateAdviceStatus) != "ADVICE_SENT" {
+		log.Printf("direct debit poll: mandate=%s not yet activatable (status=%s advice=%s), skipping", mandateId, data.MandateStatus, data.MandateAdviceStatus)
 		return nil
 	}
+	log.Printf("direct debit poll: mandate=%s is ACTIVE + ADVICE_SENT, activating subscription", mandateId)
 
 	// Extract fields from anonymous struct before entering the transaction closure
 	accountName := data.CustomerAccountName
