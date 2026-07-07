@@ -27,6 +27,7 @@ WORKDIR /app
 
 COPY --from=builder /out/api /app/api
 COPY --from=builder /out/mcp /app/mcp
+COPY --from=builder /src/internal/mail/templates /app/internal/mail/templates
 
 USER nombasub
 
