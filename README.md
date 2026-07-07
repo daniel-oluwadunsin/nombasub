@@ -27,7 +27,6 @@ The service is designed as a backend API. It exposes REST endpoints through Gin,
 - [Development Workflow](#development-workflow)
 - [Testing](#testing)
 - [Deployment Notes](#deployment-notes)
-- [Operational Caveats](#operational-caveats)
 
 ## Core Capabilities
 
@@ -1095,17 +1094,4 @@ Before deploying:
 - Run at least one API instance with cron jobs enabled. If multiple replicas are deployed, introduce distributed locking or isolate workers to avoid duplicate cron processing.
 - Ensure the runtime can reach Nomba APIs, tenant webhook URLs, RabbitMQ, PostgreSQL, and SMTP.
 - Monitor queue depth, webhook delivery failure rates, email failures, settlement failures, and Nomba provider errors.
-
-## Operational Caveats
-
-These notes reflect the current implementation and are useful for maintainers planning hardening work:
-
-- `.env.example` is missing some variables that `config.Load()` requires. Use the complete configuration table above when setting up the application.
-- `POST /auth/set-webhook-url` reads tenant context, but the route is currently outside the `/v1` API-key middleware group. As written, no tenant ID is set for that handler by the router.
-- `SetWebhookUrl` generates and returns a webhook secret, but does not currently persist it to `tenant.WebhookSecret`. Outgoing webhooks require a stored webhook URL and secret before they are enqueued.
-- Incoming Nomba webhook signature validation exists in the service layer, but enforcement is commented out in the webhook handler.
-- Some accepted Nomba webhook event types are stubbed and do not yet mutate local state.
-- The RabbitMQ reconnect loop reconnects the underlying connection/channel, but existing consumers are not explicitly re-registered after reconnection.
-- Cron jobs run in-process. Multiple running API instances can execute the same cron work unless external locking or worker separation is added.
-- GORM auto-migration is convenient for development, but organizations commonly replace or supplement it with explicit, reviewed database migrations in production.
 
