@@ -17,6 +17,7 @@ const (
 	EmailTemplateSubscriptionCardExpiring EmailTemplateName = "subscription_card_expiring.html"
 	EmailTemplateSubscriptionPaused       EmailTemplateName = "subscription_paused.html"
 	EmailTemplateSubscriptionCanceled     EmailTemplateName = "subscription_canceled.html"
+	EmailTemplatePortalSessionCode        EmailTemplateName = "portal_session_code.html"
 )
 
 type EmailContext struct {
@@ -46,7 +47,9 @@ type EmailContext struct {
 	CardExpiry         string `json:"cardExpiry"`
 	PrimaryActionLabel string `json:"primaryActionLabel"`
 	PrimaryActionURL   string `json:"primaryActionUrl"`
+	PortalURL          string `json:"portalUrl"`
 	SecondaryNote      string `json:"secondaryNote"`
+	PortalCode         string `json:"portalCode"`
 }
 
 type EmailDeliveryStatus string

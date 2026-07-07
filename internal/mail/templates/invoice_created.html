@@ -29,6 +29,12 @@
                 </p>
                 {{end}}
 
+                {{if .PortalURL}}
+                <p style="margin:0 0 26px;">
+                  <a href="{{.PortalURL}}" style="display:inline-block;background:#111111;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:8px;">Login to portal</a>
+                </p>
+                {{end}}
+
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#fffaf0;border:1px solid #f0d36a;border-radius:12px;overflow:hidden;">
                   <tr>
                     <td style="padding:14px 18px;font-size:13px;color:#5a4b00;">Merchant</td>

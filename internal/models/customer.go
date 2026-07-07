@@ -2,7 +2,7 @@ package models
 
 type Customer struct {
 	BaseModel
-	TenantID    string  `gorm:"column:tenant_id;type:uuid;not null" json:"-"`
+	TenantID    string  `gorm:"column:tenant_id;type:uuid;not null" json:"tenantId"`
 	Name        *string `gorm:"column:name;type:text" json:"name"`
 	Email       string  `gorm:"column:email;type:text;not null" json:"email"`
 	PhoneNumber *string `gorm:"column:phone_number;type:text" json:"phoneNumber"`

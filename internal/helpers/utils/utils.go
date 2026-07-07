@@ -124,6 +124,11 @@ func ValidateHash(hash string, plain string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(plain)) == nil
 }
 
+func DigestToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return base64.StdEncoding.EncodeToString(sum[:])
+}
+
 func GenerateJwt(tenantId string, cfg *config.Config) (string, error) {
 	jwtSecret := cfg.JWTSecret
 
@@ -152,4 +157,49 @@ func ValidateJwt(tokenString string, cfg *config.Config) (string, error) {
 	tenantId := claims["tenantId"].(string)
 
 	return tenantId, nil
+}
+
+type PortalJwtClaims struct {
+	TenantID   string
+	CustomerID string
+	SessionID  string
+}
+
+func GeneratePortalJwt(tenantID, customerID, sessionID string, expiresAt time.Time, cfg *config.Config) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"tenantId":   tenantID,
+		"customerId": customerID,
+		"sessionId":  sessionID,
+		"aud":        "customer_portal",
+		"exp":        expiresAt.Unix(),
+		"iat":        time.Now().Unix(),
+	})
+
+	return token.SignedString([]byte(cfg.JWTSecret))
+}
+
+func ValidatePortalJwt(tokenString string, cfg *config.Config) (*PortalJwtClaims, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
+		return []byte(cfg.JWTSecret), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !token.Valid {
+		return nil, jwt.ErrTokenInvalidClaims
+	}
+
+	claims := token.Claims.(jwt.MapClaims)
+	if claims["aud"] != "customer_portal" {
+		return nil, jwt.ErrTokenInvalidAudience
+	}
+
+	return &PortalJwtClaims{
+		TenantID:   claims["tenantId"].(string),
+		CustomerID: claims["customerId"].(string),
+		SessionID:  claims["sessionId"].(string),
+	}, nil
 }

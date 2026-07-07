@@ -57,6 +57,7 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 	planVersionRepository := ws.rc.PlanVersionRepository
 	paymentSourceRepository := ws.rc.PaymentSourceRepository
 	settlementRepository := ws.rc.SettlementRepository
+	refundRepository := ws.rc.RefundRepository
 	nombaClient := ws.nombaClient
 	db := ws.rc.DB
 
@@ -577,6 +578,97 @@ func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest
 				}
 			}
 
+			if initiation.Purpose == models.NombaInitiationPurposeUpdateCard {
+				tokenizedCard := payload.Data.TokenizedCardData
+				if tokenizedCard == nil {
+					return errors.New("tokenized card data is missing in the webhook payload")
+				}
+
+				tenantId, _ := initiation.Metadata["nombaSubTenantId"].(string)
+				customerId, _ := initiation.Metadata["nombaSubCustomerId"].(string)
+				paymentSourceId, _ := initiation.Metadata["nombaSubPaymentSourceId"].(string)
+				if tenantId == "" || customerId == "" || paymentSourceId == "" {
+					return errors.New("missing update card metadata")
+				}
+
+				card, err := paymentSourceRepository.Find(&models.PaymentSource{
+					TenantID:   tenantId,
+					CustomerID: customerId,
+					Type:       models.PaymentSourceTypeCard,
+					BaseModel:  models.BaseModel{ID: paymentSourceId},
+				}, &repositories.FindArgs{Trx: trx})
+				if err != nil {
+					return err
+				}
+				if card == nil {
+					return errors.New("payment method not found")
+				}
+
+				card.Card = &models.CardPaymentSource{
+					Type:               utils.OrStrings(tokenizedCard.CardType, payload.Data.Order.CardType),
+					Pan:                &tokenizedCard.CardPan,
+					Last4Digits:        &payload.Data.Order.CardLast4Digits,
+					Currency:           &payload.Data.Order.CardCurrency,
+					AuthorizationToken: &tokenizedCard.TokenKey,
+					ExpiryMonth:        &tokenizedCard.TokenExpiryMonth,
+					ExpiryYear:         &tokenizedCard.TokenExpiryYear,
+				}
+				card.Status = models.PaymentSourceStatusActive
+				card.ExpirationMailSent = false
+				if _, err := paymentSourceRepository.Update(card, trx); err != nil {
+					return err
+				}
+
+				var linkedSubscriptions []models.Subscription
+				if err := trx.
+					Where("tenant_id = ? AND customer_id = ? AND payment_source_id = ?", tenantId, customerId, paymentSourceId).
+					Find(&linkedSubscriptions).Error; err != nil {
+					return err
+				}
+
+				transactionId := payload.Data.Transaction.TransactionID
+				if transactionId == "" {
+					return errors.New("missing transaction ID for card update refund")
+				}
+
+				if err := nombaClient.RequestRefund(nomba.RefundRequest{TransactionId: &transactionId}); err != nil {
+					return err
+				}
+
+				refundReason := "Card update verification charge refunded"
+				refund := &models.Refund{
+					TenantID:           tenantId,
+					NombaTransactionId: &transactionId,
+					Amount:             100,
+					Currency:           "NGN",
+					Reason:             &refundReason,
+					InitiatedAt:        time.Now(),
+					ETAFrom:            time.Now(),
+					ETATo:              time.Now().Add(7 * 24 * time.Hour),
+					Card:               card.Card,
+					Metadata: map[string]interface{}{
+						"purpose":         string(models.NombaInitiationPurposeUpdateCard),
+						"paymentSourceId": paymentSourceId,
+					},
+				}
+				if _, err := refundRepository.Create(refund, trx); err != nil {
+					return err
+				}
+
+				if err := queue.EnqueueTenantWebhook(ws.rc, ws.publisher, tenantId, models.WebhookDeliveryEventTypePaymentMethodUpdated, card, trx); err != nil {
+					log.Printf("Error occurred while enqueuing tenant webhook: %v", err)
+				}
+
+				for index := range linkedSubscriptions {
+					if err := queue.EnqueueTenantWebhook(ws.rc, ws.publisher, tenantId, models.WebhookDeliveryEventTypeSubscriptionPaymentUpdated, map[string]interface{}{
+						"subscription":  linkedSubscriptions[index],
+						"paymentSource": card,
+					}, trx); err != nil {
+						log.Printf("Error occurred while enqueuing tenant webhook: %v", err)
+					}
+				}
+			}
+
 			initiation.Status = models.NombaInitiationStatusCompleted
 			initiation.NombaTransactionId = &payload.Data.Transaction.TransactionID
 			_, err = initiationRepository.Update(initiation, trx)
@@ -673,13 +765,19 @@ func (ws *WebhookService) handlePaymentFailed(payload nomba.NombaWebhookRequest)
 			if err != nil {
 				return err
 			}
-			if initiation == nil || initiation.Purpose != models.NombaInitiationPurposeCardSubscriptionPayment {
+			if initiation == nil {
+				return nil
+			}
+			if initiation.Purpose != models.NombaInitiationPurposeCardSubscriptionPayment && initiation.Purpose != models.NombaInitiationPurposeUpdateCard {
 				return nil
 			}
 
 			initiation.Status = models.NombaInitiationStatusFailed
 			if _, err = ws.rc.NombaInitiationRepository.Update(initiation, trx); err != nil {
 				return err
+			}
+			if initiation.Purpose == models.NombaInitiationPurposeUpdateCard {
+				return nil
 			}
 
 			tenantId, _ = initiation.Metadata["nombaSubTenantId"].(string)

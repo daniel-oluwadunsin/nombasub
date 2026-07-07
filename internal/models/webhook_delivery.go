@@ -11,9 +11,12 @@ const (
 type WebhookDeliveryEventType string
 
 const (
+	WebhookDeliveryEventTypeCustomerUpdated WebhookDeliveryEventType = "customer.updated"
+
 	WebhookDeliveryEventTypePaymentMethodAttached WebhookDeliveryEventType = "payment_method.attached"
 	WebhookDeliveryEventTypePaymentMethodDetached WebhookDeliveryEventType = "payment_method.detached"
 	WebhookDeliveryEventTypePaymentMethodUpdated  WebhookDeliveryEventType = "payment_method.updated"
+	WebhookDeliveryEventTypePaymentMethodDisabled WebhookDeliveryEventType = "payment_method.disabled"
 
 	// invoices
 	WebhookDeliveryEventTypeInvoiceUpcoming            WebhookDeliveryEventType = "invoice.upcoming"
@@ -33,6 +36,7 @@ const (
 	WebhookDeliveryEventTypeSubscriptionPaused         WebhookDeliveryEventType = "subscription.paused"
 	WebhookDeliveryEventTypeSubscriptionCanceled       WebhookDeliveryEventType = "subscription.canceled"
 	WebhookDeliveryEventTypeSubscriptionCompleted      WebhookDeliveryEventType = "subscription.completed"
+	WebhookDeliveryEventTypeSubscriptionPaymentUpdated WebhookDeliveryEventType = "subscription.payment_method_updated"
 	WebhookDeliveryEventTypeSubscriptionCardExpiring   WebhookDeliveryEventType = "subscription.card_expiring"
 	WebhookDeliveryEventTypeSubscriptionTrialEnding    WebhookDeliveryEventType = "subscription.trial_ending_soon"
 	WebhookDeliveryEventTypeSubscriptionBillingStarted WebhookDeliveryEventType = "subscription.billing_started"
@@ -42,7 +46,7 @@ const (
 	WebhookDeliveryEventTypeSettlementPayoutFailed    WebhookDeliveryEventType = "settlement.payout_failed"
 
 	// mandates (direct debit)
-	WebhookDeliveryEventTypeMandateCreated WebhookDeliveryEventType = "mandate.created"
+	WebhookDeliveryEventTypeMandateCreated          WebhookDeliveryEventType = "mandate.created"
 	WebhookDeliveryEventTypeMandateActivated        WebhookDeliveryEventType = "mandate.activated"
 	WebhookDeliveryEventTypeMandateActivationFailed WebhookDeliveryEventType = "mandate.activation_failed"
 	WebhookDeliveryEventTypeMandateSuspended        WebhookDeliveryEventType = "mandate.suspended"

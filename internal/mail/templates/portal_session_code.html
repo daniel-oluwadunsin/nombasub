@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{.Title}}</title>
+  </head>
+  <body style="margin:0;background:#f6f4ef;font-family:Arial,Helvetica,sans-serif;color:#111111;">
+    <div style="display:none;max-height:0;overflow:hidden;color:#f6f4ef;">{{.Preheader}}</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f6f4ef;padding:32px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#ffffff;border:1px solid #e7e0d4;border-radius:18px;overflow:hidden;">
+            <tr>
+              <td style="background:#111111;padding:28px 32px;">
+                <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#ffd400;font-weight:700;">Nomba Subscriptions</div>
+                <h1 style="margin:14px 0 0;font-size:28px;line-height:34px;color:#ffffff;">{{.Title}}</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px;">
+                <p style="margin:0 0 14px;font-size:16px;line-height:24px;">Hi {{.GreetingName}},</p>
+                <p style="margin:0 0 12px;font-size:16px;line-height:24px;font-weight:700;">{{.Intro}}</p>
+                <p style="margin:0 0 24px;font-size:15px;line-height:24px;color:#3a3a3a;">{{.Body}}</p>
+                <div style="margin:0 0 24px;padding:20px;border:1px solid #f0d36a;background:#fffaf0;border-radius:12px;text-align:center;">
+                  <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#5a4b00;">Verification code</div>
+                  <div style="margin-top:10px;font-size:34px;line-height:40px;letter-spacing:8px;font-weight:800;color:#111111;">{{.PortalCode}}</div>
+                </div>
+                {{if .PortalURL}}
+                <p style="margin:0 0 24px;">
+                  <a href="{{.PortalURL}}" style="display:inline-block;background:#111111;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:8px;">Login to portal</a>
+                </p>
+                {{end}}
+                {{if .SecondaryNote}}
+                <p style="margin:0;font-size:13px;line-height:20px;color:#666666;">{{.SecondaryNote}}</p>
+                {{end}}
+              </td>
+            </tr>
+            <tr>
+              <td style="background:#111111;padding:20px 32px;color:#ffffff;font-size:12px;line-height:18px;">
+                Sent by Nomba Subscriptions for {{.BusinessName}}. If this does not look right, contact the merchant support team.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

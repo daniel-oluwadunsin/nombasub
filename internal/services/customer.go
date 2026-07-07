@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -202,6 +203,7 @@ func (s *CustomerService) RemindCustomerCardExpiring(tenantId string, emailOrCod
 		GreetingName:  customerDisplayName(customer),
 		BusinessName:  valueOrDefault(tenant.BusinessName, "Nomba merchant"),
 		CustomerEmail: customer.Email,
+		PortalURL:     buildCustomerPortalURL(os.Getenv("CLIENT_URL"), tenant.ID, customer.ID),
 	}
 	if paymentSource.Card != nil {
 		if paymentSource.Card.Last4Digits != nil {

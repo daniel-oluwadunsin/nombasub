@@ -3,6 +3,8 @@ package services
 import (
 	"fmt"
 	"log"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -147,6 +149,7 @@ func subscriptionEmailContext(rc *repositories.Container, subscription *models.S
 		GreetingName:       customerDisplayName(customer),
 		BusinessName:       valueOrDefault(tenant.BusinessName, "Nomba merchant"),
 		CustomerEmail:      customer.Email,
+		PortalURL:          buildCustomerPortalURL(os.Getenv("CLIENT_URL"), tenant.ID, customer.ID),
 		PlanName:           plan.Name,
 		PlanCode:           plan.Code,
 		SubscriptionCode:   subscription.Code,
@@ -302,6 +305,23 @@ func valueOrDefault(value *string, fallback string) string {
 		return fallback
 	}
 	return *value
+}
+
+func buildCustomerPortalURL(clientURL string, tenantID string, customerID string) string {
+	if strings.TrimSpace(clientURL) == "" || strings.TrimSpace(tenantID) == "" || strings.TrimSpace(customerID) == "" {
+		return ""
+	}
+
+	baseURL, err := url.Parse(strings.TrimRight(clientURL, "/") + "/portal/session")
+	if err != nil {
+		return ""
+	}
+	query := baseURL.Query()
+	query.Set("customer_id", customerID)
+	query.Set("tenant_id", tenantID)
+	baseURL.RawQuery = query.Encode()
+
+	return baseURL.String()
 }
 
 func formatAmount(amount int64, currency string) string {

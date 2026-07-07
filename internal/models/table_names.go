@@ -18,4 +18,5 @@ const (
 	TableNameSettlementPayout       = "settlement_payouts"
 	TableNameEmailDelivery          = "email_deliveries"
 	TableNameRefund                 = "refunds"
+	TableNamePortalSession          = "portal_sessions"
 )

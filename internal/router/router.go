@@ -22,6 +22,8 @@ func New(
 	r.GET("/health", handlers.Health)
 	r.NoRoute(handlers.NoRoute)
 
+	authenticatePortal := middleware.AuthenticatePortal(cfg, rc.PortalSessionRepository)
+
 	auth := r.Group("/auth")
 	{
 		auth.POST("/register", handlers.RegisterTenant)
@@ -39,6 +41,26 @@ func New(
 	{
 		webhook.POST("/nomba", handlers.HandleWebhook)
 		webhook.POST("/tenant/sample", handlers.TenantSampleWebhook)
+	}
+
+	portal := r.Group("/portal")
+	{
+		portal.POST("/session/initiate", handlers.InitiatePortalSession)
+		portal.POST("/session/verify", handlers.VerifyPortalSession)
+		portal.GET("/me", authenticatePortal, handlers.GetPortalSession)
+		portal.PATCH("/profile", authenticatePortal, handlers.UpdatePortalProfile)
+		portal.GET("/analytics", authenticatePortal, handlers.GetPortalAnalytics)
+		portal.GET("/payment-sources", authenticatePortal, handlers.GetPortalPaymentSources)
+		portal.POST("/payment-sources/:paymentSourceID/card-update", authenticatePortal, handlers.InitiatePortalCardUpdate)
+		portal.POST("/payment-sources/:paymentSourceID/disable", authenticatePortal, handlers.DisablePortalPaymentSource)
+		portal.GET("/subscriptions", authenticatePortal, handlers.GetPortalSubscriptions)
+		portal.GET("/subscriptions/:idOrCode", authenticatePortal, handlers.GetPortalSubscription)
+		portal.POST("/subscriptions/:idOrCode/cancel", authenticatePortal, handlers.CancelPortalSubscription)
+		portal.PATCH("/subscriptions/:idOrCode/payment-method", authenticatePortal, handlers.UpdatePortalSubscriptionPaymentMethod)
+		portal.GET("/invoices", authenticatePortal, handlers.GetPortalInvoices)
+		portal.GET("/invoices/:idOrCode", authenticatePortal, handlers.GetPortalInvoice)
+		portal.POST("/invoices/:idOrCode/retry", authenticatePortal, handlers.RetryPortalInvoicePayment)
+		portal.GET("/refunds", authenticatePortal, handlers.GetPortalRefunds)
 	}
 
 	v1 := r.Group("/v1")

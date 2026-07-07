@@ -46,6 +46,7 @@ func main() {
 		&models.SettlementPayout{},
 		&models.Settlement{},
 		&models.Refund{},
+		&models.PortalSession{},
 	); err != nil {
 		log.Fatalf("auto-migrate failed: %v", err)
 	}

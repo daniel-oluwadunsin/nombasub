@@ -8,6 +8,7 @@ const (
 	NombaInitiationPurposeChargeCardPayment       NombaInitiationPurpose = "charge_card_payment"
 	NombaInitiationPurposeDirectDebitSubscription NombaInitiationPurpose = "direct_debit_subscription"
 	NombaInitiationPurposeDirectDebitCharge       NombaInitiationPurpose = "direct_debit_charge"
+	NombaInitiationPurposeUpdateCard              NombaInitiationPurpose = "update_card"
 )
 
 type NombaInitiationStatus string

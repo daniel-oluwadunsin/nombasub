@@ -24,6 +24,7 @@ type Config struct {
 	NombaSenderName    string
 	MailerUser         string
 	MailerPassword     string
+	ClientURL          string
 }
 
 func Load() *Config {
@@ -46,6 +47,7 @@ func Load() *Config {
 		NombaSenderName:    getEnv("NOMBA_SENDER_NAME", "NombaSub Platform"),
 		MailerUser:         requireEnv("MAILER_USER"),
 		MailerPassword:     requireEnv("MAILER_PASSWORD"),
+		ClientURL:          requireEnv("CLIENT_URL"),
 	}
 }
 

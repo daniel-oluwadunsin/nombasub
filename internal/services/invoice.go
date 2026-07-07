@@ -307,6 +307,10 @@ func (s *InvoiceService) GetInvoices(tenantID string, query requests.GetInvoiceQ
 		conditions = append(conditions, "invoices.status = ?")
 		args = append(args, *query.Status)
 	}
+	if query.CustomerID != nil && *query.CustomerID != "" {
+		conditions = append(conditions, "invoices.customer_id = ?")
+		args = append(args, *query.CustomerID)
+	}
 
 	response, err := s.rc.InvoiceRepository.FindManyPaginatedRaw(&repositories.FindArgs{
 		Filter: repositories.NewQueryFilter().Where(strings.Join(conditions, " AND "), args...),
