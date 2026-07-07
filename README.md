@@ -18,6 +18,7 @@ The service is designed as a backend API. It exposes REST endpoints through Gin,
 - [API Authentication](#api-authentication)
 - [API Reference](#api-reference)
 - [AI Access via MCP](#ai-access-via-mcp)
+- [Nomba API Usage](#nomba-api-usage)
 - [Billing and Subscription Lifecycle](#billing-and-subscription-lifecycle)
 - [Webhooks](#webhooks)
 - [Email Notifications](#email-notifications)
@@ -810,6 +811,25 @@ Add to `claude_desktop_config.json`:
 ```
 
 Then in a chat: "Give me this month's business review" invokes the `monthly_business_review` prompt, which in turn calls `generate_business_report`, `compare_periods`, and `explain_metric_change` — and returns a Markdown summary.
+
+## Nomba API Usage
+
+Every outbound Nomba call is implemented in `internal/providers/nomba/` and invoked from the service layer. The table below lists each endpoint the service actually calls, the provider method that wraps it, and what the engine uses it for.
+
+| Endpoint | Method | Provider function | Used for |
+| --- | --- | --- | --- |
+| `/v1/auth/token/issue` | `POST` | `issueAccessToken(false)` | First-time OAuth token issue for the Nomba client on cold start. |
+| `/v1/auth/token/refresh` | `POST` | `refreshAccessToken` | Refreshing the access token after a 401 response or when the cached token expires. |
+| `/v1/checkout/order` | `POST` | `CreateCheckoutOrder` | Creating a hosted checkout link with card tokenization enabled — used for initial subscription checkout, fallback links on recurring invoices without a saved card, and customer-portal card updates. |
+| `/v1/checkout/tokenized-card-payment` | `POST` | `ChargeCard` | Charging the tokenized card saved on a subscription when a recurring invoice becomes due. |
+| `/v1/checkout/refund` | `POST` | `RequestRefund` | Refunding a completed card payment; drives the invoice/refund workflow triggered by `POST /v1/checkout/refunds`. |
+| `/v1/direct-debits` | `POST` | `CreateDirectDebitManadate` | Registering a new direct-debit mandate at the customer's bank as part of `POST /v1/checkout/direct-debit`. |
+| `/v1/direct-debits/status?mandateId=` | `GET` | `GetDirectDebitManadateStatus` | Two callers: the mandate poll cron uses it to detect `Active + ADVICE_SENT`; the invoice service uses it to verify the mandate is still active before every recurring debit. |
+| `/v1/direct-debits/update-status` | `PUT` | `UpdateDirectDebitStatus` | Suspending or deleting a mandate from the merchant API (e.g. when cancelling a DD subscription). |
+| `/v1/direct-debits/debit-mandate` | `POST` | `DebitMandate` | Pulling funds via an active mandate for a due direct-debit invoice. |
+| `/v2/transfers/wallet` | `POST` | `TransferToNombaAccount` | Settlement payout — moving merchant earnings from the platform Nomba wallet to the tenant's Nomba account, run by the settlement cron. |
+
+In addition, the engine receives Nomba's outbound webhooks at `POST /webhook/nomba` (see [Webhooks](#webhooks)) — those are inbound, not part of the table above.
 
 ## Billing and Subscription Lifecycle
 
