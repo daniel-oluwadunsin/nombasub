@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 )
 
 func (c *Client) GenerateSignature(payloadJSON, timeStamp string) (string, error) {
@@ -38,8 +37,6 @@ func (c *Client) GenerateSignature(payloadJSON, timeStamp string) (string, error
 		transactionResponseCode,
 		timeStamp,
 	)
-
-	log.Printf("::: payload to hash --> [%s] :::", hashingPayload)
 
 	// Generate HMAC SHA256 and encode Base64
 	h := hmac.New(sha256.New, []byte(clientSecret))

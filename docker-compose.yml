@@ -12,6 +12,9 @@ services:
       - "8080"
     environment:
       PORT: "8080"
+      # sslmode=disable is only acceptable because Postgres is on the private
+      # compose network and never exposed. For any external/managed database,
+      # use sslmode=require (or verify-full) so DB traffic is encrypted.
       DB_DSN: "postgres://nombasub:${POSTGRES_PASSWORD}@postgres:5432/nombasub?sslmode=disable"
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
       JWT_SECRET: "${JWT_SECRET}"

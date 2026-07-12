@@ -17,6 +17,10 @@ import (
 	"gorm.io/gorm"
 )
 
+// maxPortalCodeAttempts is the number of incorrect portal sign-in code guesses
+// allowed before the code is locked and the customer must request a new one.
+const maxPortalCodeAttempts = 5
+
 type PortalService struct {
 	rc                  *repositories.Container
 	publisher           *queue.Publisher
@@ -119,7 +123,20 @@ func (s *PortalService) VerifySession(body requests.VerifyPortalSessionRequest) 
 	if session.CodeExpiresAt.Before(time.Now()) {
 		return nil, responses.BadRequest("Portal session code has expired")
 	}
+	if session.FailedAttempts >= maxPortalCodeAttempts {
+		return nil, responses.Unauthorized("Too many incorrect attempts; request a new code")
+	}
 	if !utils.ValidateHash(*session.CodeHash, body.Code) {
+		// Count the failed attempt and lock the code once the limit is hit so a
+		// 6-digit code can't be brute-forced within its validity window.
+		session.FailedAttempts++
+		if session.FailedAttempts >= maxPortalCodeAttempts {
+			expired := time.Now()
+			session.CodeExpiresAt = &expired
+		}
+		if _, updateErr := s.rc.PortalSessionRepository.Update(session, nil); updateErr != nil {
+			return nil, responses.InternalServerError(updateErr)
+		}
 		return nil, responses.Unauthorized("Invalid portal session code")
 	}
 

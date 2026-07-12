@@ -142,6 +142,17 @@ func SendTenantWebhookHandler(rc *repositories.Container) HandlerFunc {
 			return fmt.Errorf("tenant %s not found", delivery.TenantID)
 		}
 
+		// Re-validate the endpoint immediately before sending to block SSRF, even
+		// if the stored URL was validated earlier (guards against DNS rebinding).
+		if err := utils.ValidateWebhookURL(delivery.EndpointURL); err != nil {
+			log.Printf("[send-tenant-webhook] handler blocked delivery=%s endpoint=%s reason=ssrf_validation error=%v", delivery.ID, delivery.EndpointURL, err)
+			delivery.Status = models.WebhookDeliveryStatusFailed
+			if _, updateErr := rc.WebhookDeliveryRepository.Update(delivery, nil); updateErr != nil {
+				return updateErr
+			}
+			return nil
+		}
+
 		timestamp := time.Now().UTC().Format(time.RFC3339)
 
 		request := resty.New().R().

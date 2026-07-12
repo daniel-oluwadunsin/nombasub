@@ -8,6 +8,7 @@ type PortalSession struct {
 	CustomerID           string     `gorm:"column:customer_id;type:uuid;not null" json:"customerId"`
 	CodeHash             *string    `gorm:"column:code_hash;type:text;" json:"-"`
 	CodeExpiresAt        *time.Time `gorm:"column:code_expires_at;type:timestamp;" json:"codeExpiresAt"`
+	FailedAttempts       int        `gorm:"column:failed_attempts;type:int;not null;default:0" json:"-"`
 	VerifiedAt           *time.Time `gorm:"column:verified_at;type:timestamp;" json:"verifiedAt"`
 	AccessTokenHash      *string    `gorm:"column:access_token_hash;type:text;" json:"-"`
 	AccessTokenExpiresAt *time.Time `gorm:"column:access_token_expires_at;type:timestamp;" json:"accessTokenExpiresAt"`

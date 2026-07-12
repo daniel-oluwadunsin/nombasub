@@ -2,7 +2,6 @@ package nomba
 
 import (
 	"errors"
-	"log"
 
 	"github.com/daniel-oluwadunsin/nombasub/internal/responses"
 	"resty.dev/v3"
@@ -24,7 +23,7 @@ func (c *Client) CreateDirectDebitManadate(body CreateDirectDebitManadateRequest
 		return nil, err
 	}
 
-	log.Printf("nomba CreateDirectDebitManadate success: %s", res.String())
+	debugLog("nomba CreateDirectDebitManadate success: %s", res.String())
 	result := res.Result().(*CreateDirectDebitManadateResponse)
 	return result, nil
 }
@@ -86,7 +85,7 @@ func (c *Client) GetDirectDebitManadateStatus(mandateId string) (*GetDirectDebit
 	if res.IsStatusFailure() {
 		return nil, buildNombaError("GetDirectDebitManadateStatus", res)
 	}
-	log.Printf("nomba GetDirectDebitManadateStatus mandate=%s raw=%s", mandateId, res.String())
+	debugLog("nomba GetDirectDebitManadateStatus mandate=%s raw=%s", mandateId, res.String())
 	if err := detectNombaBusinessError("GetDirectDebitManadateStatus", res); err != nil {
 		return nil, err
 	}

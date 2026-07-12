@@ -51,6 +51,9 @@ func detectNombaBusinessError(op string, res *resty.Response) error {
 // we sent against what Nomba rejected. Only active in debug builds; noisy but
 // invaluable for diagnosing 4xx responses with empty bodies.
 func logNombaRequest(op string, body any) {
+	if !debugLoggingEnabled() {
+		return
+	}
 	payload, err := json.Marshal(body)
 	if err != nil {
 		log.Printf("nomba %s request: (marshal error: %v)", op, err)

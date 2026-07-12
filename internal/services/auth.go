@@ -28,22 +28,55 @@ func NewAuthService(rc *repositories.Container, cfg *config.Config) *AuthService
 	return &AuthService{rc, cfg}
 }
 
-func (s *AuthService) assignNewApiKey() (string, error) {
-	apiKey, err := utils.GenerateRandomString(32)
+// assignNewApiKey returns a freshly generated raw API key together with its
+// deterministic hash. Only the hash is ever persisted; the raw key is returned
+// to the caller for one-time display.
+func (s *AuthService) assignNewApiKey() (rawKey string, keyHash string, err error) {
+	rawKey, err = utils.GenerateRandomString(32)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	existingTenant, err := s.rc.TenantRepository.Find(&models.Tenant{ApiKey: apiKey}, nil)
+	keyHash = utils.HashAPIKey(rawKey)
+
+	existingTenant, err := s.rc.TenantRepository.Find(&models.Tenant{ApiKeyHash: &keyHash}, nil)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	if existingTenant != nil {
 		return s.assignNewApiKey()
 	}
 
-	return apiKey, nil
+	return rawKey, keyHash, nil
+}
+
+// BackfillApiKeyHashes migrates tenants created before API keys were hashed:
+// it stores the deterministic hash of the existing plaintext key and replaces
+// the stored plaintext with a masked preview. Idempotent — only rows without a
+// hash are touched — so it is safe to run on every boot.
+func BackfillApiKeyHashes(rc *repositories.Container) error {
+	tenants, err := rc.TenantRepository.FindManyRaw(&repositories.FindArgs{
+		Filter: repositories.NewQueryFilter().Where("api_key_hash IS NULL OR api_key_hash = ''"),
+	})
+	if err != nil {
+		return err
+	}
+
+	for i := range tenants {
+		tenant := &tenants[i]
+		if tenant.ApiKey == "" {
+			continue
+		}
+		keyHash := utils.HashAPIKey(tenant.ApiKey)
+		tenant.ApiKeyHash = &keyHash
+		tenant.ApiKey = utils.MaskSecret(tenant.ApiKey)
+		if _, err := rc.TenantRepository.Update(tenant, nil); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *AuthService) RegisterTenant(body requests.SignUpTenantRequest) (*string, error) {
@@ -59,7 +92,7 @@ func (s *AuthService) RegisterTenant(body requests.SignUpTenantRequest) (*string
 		return nil, responses.Conflict("A tenant has already been created for this account id")
 	}
 
-	apiKey, err := s.assignNewApiKey()
+	rawKey, keyHash, err := s.assignNewApiKey()
 	if err != nil {
 		return nil, responses.InternalServerError(err)
 	}
@@ -72,7 +105,8 @@ func (s *AuthService) RegisterTenant(body requests.SignUpTenantRequest) (*string
 	tenant := &models.Tenant{
 		BusinessName: &body.BusinessName,
 		AccountID:    body.AccountID,
-		ApiKey:       apiKey,
+		ApiKey:       utils.MaskSecret(rawKey),
+		ApiKeyHash:   &keyHash,
 		Password:     &hashedPassword,
 	}
 
@@ -81,7 +115,7 @@ func (s *AuthService) RegisterTenant(body requests.SignUpTenantRequest) (*string
 		return nil, responses.InternalServerError(err)
 	}
 
-	return &tenant.ApiKey, nil
+	return &rawKey, nil
 }
 
 func (s *AuthService) LoginTenant(body requests.LoginTenantRequest) (*models.Tenant, error) {
@@ -92,16 +126,14 @@ func (s *AuthService) LoginTenant(body requests.LoginTenantRequest) (*models.Ten
 		return nil, responses.InternalServerError(err)
 	}
 
-	if tenant == nil {
-		return nil, responses.NotFound("Tenant not found")
-	}
-
-	if tenant.Password == nil {
-		return nil, responses.Forbidden("password not set")
+	// Return an identical error for "no such account", "password not set", and
+	// "wrong password" so the endpoint can't be used to enumerate valid accounts.
+	if tenant == nil || tenant.Password == nil {
+		return nil, responses.Unauthorized("Invalid account ID or password")
 	}
 
 	if !utils.ValidateHash(*tenant.Password, body.Password) {
-		return nil, responses.Unauthorized("Password incorrect")
+		return nil, responses.Unauthorized("Invalid account ID or password")
 	}
 
 	accessToken, err := utils.GenerateJwt(tenant.ID, s.cfg)
@@ -110,7 +142,7 @@ func (s *AuthService) LoginTenant(body requests.LoginTenantRequest) (*models.Ten
 	}
 
 	tenant.AccessToken = &accessToken
-	tenant.AccessTokenExpiresAt = utils.ToPtr(time.Now().Add(24 * time.Hour))
+	tenant.AccessTokenExpiresAt = utils.ToPtr(time.Now().Add(utils.TenantTokenTTL))
 	_, err = tenantRepository.Update(tenant, nil)
 	if err != nil {
 		return nil, responses.InternalServerError(err)
@@ -166,6 +198,9 @@ func (s *AuthService) UpdateTenantSettings(tenantId string, body requests.Update
 		tenant.BusinessName = body.BusinessName
 	}
 	if body.WebhookUrl != nil {
+		if err := utils.ValidateWebhookURL(*body.WebhookUrl); err != nil {
+			return nil, responses.BadRequest(err.Error())
+		}
 		tenant.WebhookUrl = body.WebhookUrl
 	}
 
@@ -186,18 +221,22 @@ func (s *AuthService) RotateTenantApiKey(tenantId string) (*TenantSettings, erro
 		return nil, responses.NotFound("Tenant not found")
 	}
 
-	apiKey, err := s.assignNewApiKey()
+	rawKey, keyHash, err := s.assignNewApiKey()
 	if err != nil {
 		return nil, responses.InternalServerError(err)
 	}
 
-	tenant.ApiKey = apiKey
+	tenant.ApiKey = utils.MaskSecret(rawKey)
+	tenant.ApiKeyHash = &keyHash
 	updatedTenant, err := s.rc.TenantRepository.Update(tenant, nil)
 	if err != nil {
 		return nil, responses.InternalServerError(err)
 	}
 
-	return settingsFromTenant(updatedTenant), nil
+	// Return the raw key exactly once; it is never stored or shown again.
+	settings := settingsFromTenant(updatedTenant)
+	settings.ApiKey = rawKey
+	return settings, nil
 }
 
 func (s *AuthService) RotateTenantWebhookSecret(tenantId string) (*TenantSettings, error) {
@@ -261,6 +300,10 @@ func (s *AuthService) SetWebhookUrl(tenantId string, webhookUrl string) (*string
 
 	if tenant == nil {
 		return nil, responses.NotFound("Tenant not found")
+	}
+
+	if err := utils.ValidateWebhookURL(webhookUrl); err != nil {
+		return nil, responses.BadRequest(err.Error())
 	}
 
 	tenant.WebhookUrl = &webhookUrl
