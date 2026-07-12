@@ -17,17 +17,27 @@ func New(
 ) *gin.Engine {
 	r := gin.New()
 	authenticate := middleware.Authenticate(cfg, rc.TenantRepository, sc.AuthService)
-	r.Use(gin.Logger(), gin.Recovery(), middleware.CORS())
+	r.Use(
+		gin.Logger(),
+		gin.Recovery(),
+		middleware.SecurityHeaders(),
+		middleware.BodyLimit(1<<20), // 1 MiB
+		middleware.CORS(),
+	)
 
 	r.GET("/health", handlers.Health)
 	r.NoRoute(handlers.NoRoute)
 
 	authenticatePortal := middleware.AuthenticatePortal(cfg, rc.PortalSessionRepository)
 
+	// Strict throttle for unauthenticated, abuse-prone endpoints (credential
+	// stuffing, code brute-force, email flooding).
+	sensitiveRateLimit := middleware.RateLimit(10)
+
 	auth := r.Group("/auth")
 	{
-		auth.POST("/register", handlers.RegisterTenant)
-		auth.POST("/login", handlers.LoginTenant)
+		auth.POST("/register", sensitiveRateLimit, handlers.RegisterTenant)
+		auth.POST("/login", sensitiveRateLimit, handlers.LoginTenant)
 		auth.POST("/sign-out", authenticate, handlers.SignOutTenant)
 		auth.GET("/settings", authenticate, handlers.GetTenantSettings)
 		auth.PATCH("/settings", authenticate, handlers.UpdateTenantSettings)
@@ -45,8 +55,8 @@ func New(
 
 	portal := r.Group("/portal")
 	{
-		portal.POST("/session/initiate", handlers.InitiatePortalSession)
-		portal.POST("/session/verify", handlers.VerifyPortalSession)
+		portal.POST("/session/initiate", sensitiveRateLimit, handlers.InitiatePortalSession)
+		portal.POST("/session/verify", sensitiveRateLimit, handlers.VerifyPortalSession)
 		portal.GET("/me", authenticatePortal, handlers.GetPortalSession)
 		portal.PATCH("/profile", authenticatePortal, handlers.UpdatePortalProfile)
 		portal.GET("/analytics", authenticatePortal, handlers.GetPortalAnalytics)
@@ -64,7 +74,7 @@ func New(
 	}
 
 	v1 := r.Group("/v1")
-	v1.Use(authenticate)
+	v1.Use(authenticate, middleware.RateLimitByTenant(300))
 	{
 		customers := v1.Group("/customer")
 		{

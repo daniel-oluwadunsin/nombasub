@@ -26,12 +26,13 @@ type Client struct {
 
 func New(env *config.Config) (*Client, error) {
 	client := &Client{
-		BaseURL:      env.NombaBaseURL,
-		HTTPClient:   resty.New().SetBaseURL(env.NombaBaseURL),
-		ClientID:     env.NombaClientID,
-		ClientSecret: env.NombaClientSecret,
-		AccountID:    env.NombaAccountID,
-		SubAccountID: env.NombaSubAccountID,
+		BaseURL:       env.NombaBaseURL,
+		HTTPClient:    resty.New().SetBaseURL(env.NombaBaseURL),
+		ClientID:      env.NombaClientID,
+		ClientSecret:  env.NombaClientSecret,
+		AccountID:     env.NombaAccountID,
+		SubAccountID:  env.NombaSubAccountID,
+		WebhookSecret: env.NombaWebhookSecret,
 	}
 	err := client.setNewHTTPClient()
 	if err != nil {

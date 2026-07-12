@@ -4,9 +4,12 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/daniel-oluwadunsin/nombasub/internal/config"
 	"github.com/daniel-oluwadunsin/nombasub/internal/cron"
@@ -22,6 +25,12 @@ import (
 )
 
 func main() {
+	// Default to release mode (no debug route dumps / verbose output) unless the
+	// operator explicitly selects a mode via GIN_MODE.
+	if os.Getenv("GIN_MODE") == "" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	cfg := config.Load()
 
 	database, err := db.Connect(cfg)
@@ -56,6 +65,10 @@ func main() {
 		log.Fatalf("failed to initialize nomba provider: %v", err)
 	}
 	rc := repositories.NewContainer(database)
+
+	if err := services.BackfillApiKeyHashes(rc); err != nil {
+		log.Fatalf("api key hash backfill failed: %v", err)
+	}
 
 	mailer := mail.NewMailer(cfg.MailerUser, cfg.MailerPassword)
 

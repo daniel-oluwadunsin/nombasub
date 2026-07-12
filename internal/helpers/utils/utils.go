@@ -113,7 +113,7 @@ func HashOutgoingPayload(eventType, webhookId, tenantId, timestamp string, webho
 }
 
 func Hash(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), 5)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 	if err != nil {
 		return "", err
 	}
@@ -129,10 +129,36 @@ func DigestToken(token string) string {
 	return base64.StdEncoding.EncodeToString(sum[:])
 }
 
+// HashAPIKey returns a deterministic digest for an API key. It is deterministic
+// (unlike bcrypt) so the value can be indexed and looked up directly, while the
+// plaintext key never has to be stored. Safe because API keys are high-entropy.
+func HashAPIKey(key string) string {
+	return DigestToken(key)
+}
+
+// MaskSecret returns a non-reversible preview of a secret for display purposes
+// (e.g. showing which key is configured without revealing it).
+func MaskSecret(secret string) string {
+	if len(secret) <= 6 {
+		return "…"
+	}
+	return secret[:6] + "…"
+}
+
+// TenantTokenTTL is the lifetime of a tenant access token. It must match the
+// AccessTokenExpiresAt persisted at login so the cryptographic expiry and the
+// database revocation gate agree.
+const TenantTokenTTL = 24 * time.Hour
+
 func GenerateJwt(tenantId string, cfg *config.Config) (string, error) {
 	jwtSecret := cfg.JWTSecret
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"tenantId": tenantId, "timestamp": time.Now().String()})
+	now := time.Now()
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"tenantId": tenantId,
+		"iat":      now.Unix(),
+		"exp":      now.Add(TenantTokenTTL).Unix(),
+	})
 
 	return token.SignedString([]byte(jwtSecret))
 }
@@ -151,10 +177,19 @@ func ValidateJwt(tokenString string, cfg *config.Config) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if !token.Valid {
+		return "", jwt.ErrTokenInvalidClaims
+	}
 
-	claims := token.Claims.(jwt.MapClaims)
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", jwt.ErrTokenInvalidClaims
+	}
 
-	tenantId := claims["tenantId"].(string)
+	tenantId, ok := claims["tenantId"].(string)
+	if !ok || tenantId == "" {
+		return "", jwt.ErrTokenInvalidClaims
+	}
 
 	return tenantId, nil
 }
@@ -192,14 +227,24 @@ func ValidatePortalJwt(tokenString string, cfg *config.Config) (*PortalJwtClaims
 		return nil, jwt.ErrTokenInvalidClaims
 	}
 
-	claims := token.Claims.(jwt.MapClaims)
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, jwt.ErrTokenInvalidClaims
+	}
 	if claims["aud"] != "customer_portal" {
 		return nil, jwt.ErrTokenInvalidAudience
 	}
 
+	tenantID, tenantOK := claims["tenantId"].(string)
+	customerID, customerOK := claims["customerId"].(string)
+	sessionID, sessionOK := claims["sessionId"].(string)
+	if !tenantOK || !customerOK || !sessionOK {
+		return nil, jwt.ErrTokenInvalidClaims
+	}
+
 	return &PortalJwtClaims{
-		TenantID:   claims["tenantId"].(string),
-		CustomerID: claims["customerId"].(string),
-		SessionID:  claims["sessionId"].(string),
+		TenantID:   tenantID,
+		CustomerID: customerID,
+		SessionID:  sessionID,
 	}, nil
 }

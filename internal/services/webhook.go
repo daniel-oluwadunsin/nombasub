@@ -1,6 +1,7 @@
 package services
 
 import (
+	"crypto/hmac"
 	"encoding/json"
 	"errors"
 	"log"
@@ -48,7 +49,7 @@ func (ws *WebhookService) ValidateWebhookSignature(receivedSignature, timestamp 
 		return false
 	}
 
-	return receivedSignature == expectedSignature
+	return hmac.Equal([]byte(receivedSignature), []byte(expectedSignature))
 }
 
 func (ws *WebhookService) handlePaymentSuccess(payload nomba.NombaWebhookRequest) error {

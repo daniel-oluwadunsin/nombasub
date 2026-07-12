@@ -16,6 +16,7 @@ The service is designed as a backend API. It exposes REST endpoints through Gin,
 - [Running with Docker](#running-with-docker)
 - [Production Deployment (Coolify on EC2)](#production-deployment-coolify-on-ec2)
 - [API Authentication](#api-authentication)
+- [Security](#security)
 - [API Reference](#api-reference)
 - [AI Access via MCP](#ai-access-via-mcp)
 - [Nomba API Usage](#nomba-api-usage)
@@ -69,6 +70,53 @@ flowchart LR
     Consumers --> SMTP["Gmail SMTP"]
 
     Scheduler["Cron Scheduler"] --> Services
+```
+
+### Client Interfaces
+
+Four consumer surfaces talk to the same Gin API engine (`cmd/api`). Each has its
+own route group and authentication scheme, so a compromise or bug in one surface
+cannot reach another's data:
+
+| Surface | Purpose | Route group | Authentication |
+| --- | --- | --- | --- |
+| **Merchant Portal** | Web dashboard where a merchant manages plans, customers, subscriptions, and settings | `/auth/*`, `/v1/*` | Tenant JWT (`Authorization: Bearer`) |
+| **Merchant Backend** | Server-to-server integration by the merchant | `/v1/*` | API key (`X-Api-Key`) |
+| **Self-Service Portal** | Customer-facing billing portal to manage their own subscriptions, payment methods, and invoices | `/portal/*` | Portal session JWT, scoped to `tenant + customer + session` |
+| **MCP Server** | AI clients (Claude, Cursor, ChatGPT) accessing merchant data through tools | `/v1/*` via `cmd/mcp` | Relays the merchant's `X-Api-Key` to the engine |
+
+Nomba calls back into `/webhook/nomba`, and outbound events are pushed to each
+tenant's own webhook URL by the queue consumers.
+
+```mermaid
+flowchart TB
+    Merchant["Merchant Portal<br/>web dashboard"]
+    MerchantBE["Merchant Backend<br/>server-to-server"]
+    Customer["Self-Service Portal<br/>customer billing UI"]
+    AI["AI Clients<br/>Claude · Cursor · ChatGPT"]
+
+    Merchant -- "tenant JWT" --> AuthG["/auth/*"]
+    Merchant -- "tenant JWT" --> V1G["/v1/*<br/>merchant API"]
+    MerchantBE -- "X-Api-Key" --> V1G
+    Customer -- "portal session JWT" --> PortalG["/portal/*<br/>customer API"]
+    AI --> MCP["MCP Server<br/>cmd/mcp"]
+    MCP -- "X-Api-Key relay" --> V1G
+    Nomba["Nomba"] -- "signed webhook" --> HookG["/webhook/nomba"]
+
+    AuthG --> Engine["Gin HTTP API<br/>cmd/api"]
+    V1G --> Engine
+    PortalG --> Engine
+    HookG --> Engine
+
+    Engine --> Svc["Service Layer"]
+    Svc --> PG[("PostgreSQL")]
+    Svc --> MQ["RabbitMQ"]
+    Svc --> NombaClient["Nomba Client"]
+    NombaClient --> Nomba
+    MQ --> Workers["Queue Consumers"]
+    Workers -- "signed events" --> TenantHook["Tenant Webhook URL"]
+    Workers --> SMTP["SMTP / Email"]
+    Cron["Cron Scheduler"] --> Svc
 ```
 
 The runtime starts from `cmd/api/main.go` and performs the following boot sequence:
@@ -339,7 +387,87 @@ Tenant-protected routes are grouped under `/v1` and require an API key header. B
 X-Api-Key: <tenant-api-key>
 ```
 
-The API key is issued by `POST /auth/register` or returned by `POST /auth/login`.
+The API key is issued once by `POST /auth/register` (and re-issued once by
+`POST /auth/api-key/rotate`). It is not recoverable afterward — `GET /auth/settings`
+returns only a masked preview. Store it securely when it is first shown.
+
+## Security
+
+This section documents the controls the platform enforces and the
+responsibilities left to the operator.
+
+### Authentication and tokens
+
+- **API keys are never stored in plaintext.** Only a SHA-256 digest is persisted
+  (`api_key_hash`); requests are authenticated by hashing the presented key and
+  matching the digest. The stored `api_key` column holds a masked preview for
+  display only. The raw key is shown exactly once, at register/rotate.
+- **Tenant JWTs are time-boxed and revocable.** Access tokens carry an `exp`
+  claim (24h) that is enforced on every request, and each request is additionally
+  checked against the server-side token stored for the tenant. Signing out clears
+  that token, so it immediately stops working — tokens are not valid until natural
+  expiry once revoked.
+- **Passwords** are hashed with bcrypt (cost 12). Login returns an identical error
+  for unknown account, unset password, and wrong password, so the endpoint cannot
+  be used to enumerate valid accounts.
+
+### Customer portal
+
+- Sign-in uses a one-time numeric code that is bcrypt-hashed at rest and expires
+  after 10 minutes. After 5 incorrect attempts the code is locked and the customer
+  must request a new one, preventing brute-force within the validity window.
+- Portal session tokens are scoped to `tenant + customer + session`, stored as a
+  hash, and validated against the session record (verified, not revoked, not
+  expired) on every request.
+
+### Secrets and encryption
+
+- Provider client secrets are encrypted with **AES-256-GCM** (per-record nonce,
+  associated data binding) using a base64 32-byte `ENCRYPTION_KEY`.
+- The service **refuses to boot** if `JWT_SECRET` / `JWT_REFRESH_SECRET` are
+  shorter than 32 characters or still set to a shipped placeholder.
+- `.env` is git-ignored and must never be committed. Rotate any secret that may
+  have been exposed.
+
+### Webhook security
+
+- **Inbound (Nomba → platform):** `POST /webhook/nomba` verifies the
+  `nomba-signature` HMAC (constant-time compare) against the shared
+  `NOMBA_WEBHOOK_SECRET` before processing. Unsigned or mismatched requests are
+  rejected, so payment events cannot be forged.
+- **Outbound (platform → tenant):** deliveries are signed with the tenant's
+  webhook secret (`x-nombasub-signature`); verify it on your endpoint. Tenant
+  webhook URLs must be HTTPS and are validated (at set-time and again before every
+  delivery) to reject loopback, private, and link-local targets — this blocks SSRF
+  into internal services and cloud metadata endpoints.
+
+### Network and transport hardening
+
+- **Rate limiting:** login, registration, and portal code issue/verify are
+  throttled per client IP; the authenticated `/v1` surface is throttled per tenant.
+- **Response headers:** `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy`, and HSTS are set on every response.
+- **Request bodies** are capped (1 MiB) to limit memory-exhaustion abuse.
+- Gin runs in **release mode** by default (no debug route dumps); override with
+  `GIN_MODE`.
+- **Database:** the bundled Postgres runs on a private network with
+  `sslmode=disable`. For any external or managed database, use `sslmode=require`
+  (or `verify-full`) so DB traffic is encrypted.
+
+### Sensitive data and logging
+
+Verbose Nomba request/response logging (which includes PII and payment details)
+is **off by default**. Enable it only for short debugging sessions by setting
+`NOMBA_DEBUG_LOGGING=true`, and keep it unset in production.
+
+### Operator responsibilities
+
+- Generate strong, unique values for all secrets (`openssl rand -base64 48` for
+  JWT secrets, `openssl rand -base64 32` for `ENCRYPTION_KEY`).
+- Rotate `NOMBA_WEBHOOK_SECRET`, `NOMBA_CLIENT_SECRET`, `ENCRYPTION_KEY`, and
+  mailer credentials on any suspected exposure.
+- Before relying on inbound webhook verification in production, confirm the
+  signature field ordering matches a real Nomba payload.
 
 ## API Reference
 

@@ -31,7 +31,8 @@ func Authenticate(
 		apiKey := c.GetHeader(cfg.APIKeyHeader)
 
 		if apiKey != "" {
-			tenant, err = tenantRepo.Find(&models.Tenant{ApiKey: apiKey}, nil)
+			keyHash := utils.HashAPIKey(apiKey)
+			tenant, err = tenantRepo.Find(&models.Tenant{ApiKeyHash: &keyHash}, nil)
 			if err != nil {
 				c.AbortWithStatusJSON(http.StatusInternalServerError, responses.Format(&responses.Response{
 					Success: false,
@@ -42,9 +43,18 @@ func Authenticate(
 		}
 
 		token := c.GetHeader("Authorization")
-		if strings.Index(token, "Bearer ") == 0 {
-			accessToken := strings.Split(token, " ")[1]
+		if strings.HasPrefix(token, "Bearer ") {
+			accessToken := strings.TrimPrefix(token, "Bearer ")
 			tenantId, err := utils.ValidateJwt(accessToken, cfg)
+			if err != nil {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, responses.Format(&responses.Response{
+					Success: false,
+					Message: "Invalid or expired token",
+				}))
+				return
+			}
+
+			tenant, err = tenantRepo.Find(&models.Tenant{BaseModel: models.BaseModel{ID: tenantId}}, nil)
 			if err != nil {
 				c.AbortWithStatusJSON(http.StatusInternalServerError, responses.Format(&responses.Response{
 					Success: false,
@@ -53,11 +63,17 @@ func Authenticate(
 				return
 			}
 
-			tenant, err = tenantRepo.Find(&models.Tenant{BaseModel: models.BaseModel{ID: tenantId}}, nil)
-			if tenant != nil && tenant.AccessTokenExpiresAt != nil && tenant.AccessTokenExpiresAt.Before(time.Now()) {
-				c.AbortWithStatusJSON(http.StatusInternalServerError, responses.Format(&responses.Response{
+			// Reject tokens that don't match the currently-stored session token
+			// (sign-out clears it) or whose server-side expiry has passed. This
+			// is what makes sign-out and revocation actually take effect.
+			if tenant == nil ||
+				tenant.AccessToken == nil ||
+				*tenant.AccessToken != accessToken ||
+				tenant.AccessTokenExpiresAt == nil ||
+				tenant.AccessTokenExpiresAt.Before(time.Now()) {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, responses.Format(&responses.Response{
 					Success: false,
-					Message: "Access Token expired",
+					Message: "Invalid or expired token",
 				}))
 				return
 			}
